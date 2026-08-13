@@ -11,6 +11,7 @@ import {
   type StartPosition,
 } from "../types";
 import { localDateIso, newId, nowIso, snapshotFromExercise } from "./utils";
+import { createTeachingLevels } from "./teachingLevels";
 
 type ExerciseSeed = {
   id: string;
@@ -108,6 +109,11 @@ function makeCourseExercise(
     note: "",
     familiarity: order < 3 ? "familiar" : order < 7 ? "unsure" : "new",
     snapshot: snapshotFromExercise(exercise),
+    teachingLevels: createTeachingLevels(
+      exercise,
+      exercise.suggestedSeconds,
+      `demo-${exercise.id}`,
+    ),
   };
 }
 

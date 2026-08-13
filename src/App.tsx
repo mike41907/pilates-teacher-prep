@@ -34,12 +34,15 @@ import {
   type SpecialCondition,
   type StartPosition,
   type StudyMode,
+  type TeachingLevel,
   type Template,
   type ThemeMode,
 } from "./types";
 import { mergeBackup, parseBackup, serializeBackup } from "./lib/backup";
 import { usePersistedData } from "./hooks/usePersistedData";
 import { TeachingView } from "./components/TeachingView";
+import { TeachingFlowReadout } from "./components/TeachingFlowReadout";
+import { createTeachingLevels, teachingLevelLabel } from "./lib/teachingLevels";
 import {
   averageActualDurationSeconds,
   classNames,
@@ -417,15 +420,16 @@ export default function App() {
     const course = data.courses.find((item) => item.id === activeCourseId);
     if (!course) return;
     const sectionId = course.sections[0]?.id ?? newId("section");
+    const plannedSeconds =
+      averageActualDurationSeconds(data.courses, exercise.id) ??
+      exercise.suggestedSeconds;
     const item: CourseExercise = {
       id: newId("course-exercise"),
       exerciseId: exercise.id,
       sectionId,
       order: course.exercises.length,
       reps: exercise.suggestedReps,
-      durationSeconds:
-        averageActualDurationSeconds(data.courses, exercise.id) ??
-        exercise.suggestedSeconds,
+      durationSeconds: plannedSeconds,
       spring: exercise.spring,
       footbar: exercise.footbar,
       headrest: exercise.headrest,
@@ -433,6 +437,11 @@ export default function App() {
       note: "",
       familiarity: "new",
       snapshot: snapshotFromExercise(exercise),
+      teachingLevels: createTeachingLevels(
+        exercise,
+        plannedSeconds,
+        newId("teaching-flow"),
+      ),
     };
     const nextCourse: Course = {
       ...course,
@@ -465,19 +474,27 @@ export default function App() {
         ...course,
         exercises: course.exercises.map((item) =>
           item.id === replaceTargetId
-            ? {
-                ...item,
-                exerciseId: exercise.id,
-                reps: exercise.suggestedReps,
-                durationSeconds:
+            ? (() => {
+                const plannedSeconds =
                   averageActualDurationSeconds(data.courses, exercise.id) ??
-                  exercise.suggestedSeconds,
-                spring: exercise.spring,
-                footbar: exercise.footbar,
-                headrest: exercise.headrest,
-                cue: clone(exercise.defaultCue),
-                snapshot: snapshotFromExercise(exercise),
-              }
+                  exercise.suggestedSeconds;
+                return {
+                  ...item,
+                  exerciseId: exercise.id,
+                  reps: exercise.suggestedReps,
+                  durationSeconds: plannedSeconds,
+                  spring: exercise.spring,
+                  footbar: exercise.footbar,
+                  headrest: exercise.headrest,
+                  cue: clone(exercise.defaultCue),
+                  snapshot: snapshotFromExercise(exercise),
+                  teachingLevels: createTeachingLevels(
+                    exercise,
+                    plannedSeconds,
+                    item.id,
+                  ),
+                };
+              })()
             : item,
         ),
       }),
@@ -524,6 +541,38 @@ export default function App() {
         ),
       }),
       "已儲存為這個動作的預設 Cue。",
+    );
+
+  const saveDefaultTeachingLevels = (
+    exerciseId: string,
+    levels: TeachingLevel[],
+  ) =>
+    update(
+      (current) => ({
+        ...current,
+        exercises: current.exercises.map((exercise) => {
+          if (exercise.id !== exerciseId) return exercise;
+          const regression = levels.find(
+            (level) => level.kind === "regression",
+          );
+          const variation = levels.find((level) => level.kind === "variation");
+          return {
+            ...exercise,
+            regression: regression?.instruction || exercise.regression,
+            progression: variation?.instruction || exercise.progression,
+            defaultTeachingLevels: levels.map((level) => ({
+              kind: level.kind,
+              title: level.title,
+              instruction: level.instruction,
+              cue: level.cue,
+              reps: level.reps,
+              durationSeconds: level.durationSeconds,
+            })),
+            updatedAt: nowIso(),
+          };
+        }),
+      }),
+      "已儲存為這個動作的預設三階流程。",
     );
 
   const saveExercise = (exercise: Exercise, previousId?: string) => {
@@ -680,6 +729,7 @@ export default function App() {
               onBack={() => navigate("today")}
               onUpdateCourse={updateCourse}
               onSaveDefaultCue={saveDefaultCue}
+              onSaveDefaultTeachingLevels={saveDefaultTeachingLevels}
               onOpenPicker={(mode, targetId) => {
                 setPickerMode(mode);
                 setReplaceTargetId(targetId ?? null);
@@ -1562,6 +1612,7 @@ function CourseEditorView({
   onBack,
   onUpdateCourse,
   onSaveDefaultCue,
+  onSaveDefaultTeachingLevels,
   onOpenPicker,
   onStudy,
   onTeach,
@@ -1582,6 +1633,10 @@ function CourseEditorView({
     message?: string,
   ) => void;
   onSaveDefaultCue: (exerciseId: string, cue: Cue) => void;
+  onSaveDefaultTeachingLevels: (
+    exerciseId: string,
+    levels: TeachingLevel[],
+  ) => void;
   onOpenPicker: (mode: "add" | "replace", targetId?: string) => void;
   onStudy: () => void;
   onTeach: () => void;
@@ -1615,6 +1670,24 @@ function CourseEditorView({
         item.id === itemId ? { ...item, ...patch } : item,
       ),
     }));
+  const updateTeachingLevel = (
+    item: CourseExercise,
+    levelId: string,
+    patch: Partial<TeachingLevel>,
+  ) => {
+    const teachingLevels = item.teachingLevels.map((level) =>
+      level.id === levelId ? { ...level, ...patch } : level,
+    );
+    const standard = teachingLevels.find((level) => level.kind === "standard");
+    updateItem(item.id, {
+      teachingLevels,
+      durationSeconds: teachingLevels.reduce(
+        (total, level) => total + level.durationSeconds,
+        0,
+      ),
+      reps: standard?.reps || item.reps,
+    });
+  };
   const reorder = (fromId: string, toId: string) => {
     if (fromId === toId) return;
     onUpdateCourse(course.id, (current) => {
@@ -1874,21 +1947,24 @@ function CourseEditorView({
                   <input
                     value={item.reps}
                     onChange={(event) =>
-                      updateItem(item.id, { reps: event.target.value })
+                      updateItem(item.id, {
+                        reps: event.target.value,
+                        teachingLevels: item.teachingLevels.map((level) =>
+                          level.kind === "standard"
+                            ? { ...level, reps: event.target.value }
+                            : level,
+                        ),
+                      })
                     }
                   />
                 </label>
                 <label>
-                  秒數
+                  總秒數（三階加總）
                   <input
                     type="number"
                     min="0"
                     value={item.durationSeconds}
-                    onChange={(event) =>
-                      updateItem(item.id, {
-                        durationSeconds: Number(event.target.value) || 0,
-                      })
-                    }
+                    readOnly
                   />
                 </label>
                 <label>
@@ -1933,6 +2009,94 @@ function CourseEditorView({
                     ))}
                   </select>
                 </label>
+              </div>
+              <div className="teaching-flow-editor">
+                <div className="editor-subtitle">
+                  <span>教學流程</span>
+                  <small>依序帶：退階 → 正常 → 變化</small>
+                </div>
+                <div className="teaching-level-grid">
+                  {item.teachingLevels.map((level) => (
+                    <section
+                      className={`teaching-level-card level-${level.kind}`}
+                      key={level.id}
+                    >
+                      <div className="teaching-level-heading">
+                        <strong>{teachingLevelLabel(level.kind)}</strong>
+                        <span>{formatSeconds(level.durationSeconds)}</span>
+                      </div>
+                      <label>
+                        版本名稱
+                        <input
+                          aria-label={`${teachingLevelLabel(level.kind)}版本名稱`}
+                          value={level.title}
+                          onChange={(event) =>
+                            updateTeachingLevel(item, level.id, {
+                              title: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        做法
+                        <textarea
+                          rows={2}
+                          aria-label={`${teachingLevelLabel(level.kind)}做法`}
+                          value={level.instruction}
+                          onChange={(event) =>
+                            updateTeachingLevel(item, level.id, {
+                              instruction: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        專屬 Cue
+                        <textarea
+                          rows={2}
+                          aria-label={`${teachingLevelLabel(level.kind)}專屬 Cue`}
+                          value={level.cue}
+                          onChange={(event) =>
+                            updateTeachingLevel(item, level.id, {
+                              cue: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <div className="teaching-level-fields">
+                        <label>
+                          次數
+                          <input
+                            aria-label={`${teachingLevelLabel(level.kind)}次數`}
+                            value={level.reps}
+                            onChange={(event) =>
+                              updateTeachingLevel(item, level.id, {
+                                reps: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          秒數
+                          <input
+                            type="number"
+                            min="0"
+                            aria-label={`${teachingLevelLabel(level.kind)}秒數`}
+                            value={level.durationSeconds}
+                            onChange={(event) =>
+                              updateTeachingLevel(item, level.id, {
+                                durationSeconds: Math.max(
+                                  0,
+                                  Number(event.target.value) || 0,
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </section>
+                  ))}
+                </div>
               </div>
               <label className="full-field">
                 本堂課備註
@@ -1985,6 +2149,17 @@ function CourseEditorView({
                   }}
                 >
                   儲存成我的預設 Cue
+                </button>
+                <button
+                  className="small-button"
+                  onClick={() =>
+                    onSaveDefaultTeachingLevels(
+                      item.exerciseId,
+                      item.teachingLevels,
+                    )
+                  }
+                >
+                  儲存成我的預設三階流程
                 </button>
                 <div className="row-actions">
                   <button
@@ -2356,6 +2531,12 @@ function AnalysisPanel({
   const wristCount = course.exercises.filter((item) =>
     item.snapshot.specialConditions.includes("手腕負重"),
   ).length;
+  const missingRegressionCount = course.exercises.filter((item) => {
+    const regression = item.teachingLevels.find(
+      (level) => level.kind === "regression",
+    );
+    return !regression?.title.trim() || !regression.instruction.trim();
+  }).length;
   const similar = courses
     .filter((candidate) => candidate.id !== course.id)
     .map((candidate) => ({
@@ -2412,6 +2593,12 @@ function AnalysisPanel({
             {wristCount >= 3 && (
               <div className="notice-pill warning">
                 <span>!</span> 本堂課有 {wristCount} 個手腕負重動作
+              </div>
+            )}
+            {missingRegressionCount > 0 && (
+              <div className="notice-pill warning">
+                <span>!</span> 尚有 {missingRegressionCount}{" "}
+                個動作未完成退階版本
               </div>
             )}
             {longestPosition && (
@@ -2670,7 +2857,10 @@ function StudyView({
             <div className="study-answer-box cue-recall-box">
               <span>先自己講完，再對照你的口令</span>
               {showCue ? (
-                <CueReadout cue={item.cue} />
+                <>
+                  <TeachingFlowReadout levels={item.teachingLevels} />
+                  <CueReadout cue={item.cue} />
+                </>
               ) : (
                 <button
                   className="primary-button"
@@ -3804,6 +3994,24 @@ function ExerciseModal({
             />
           </label>
           <label>
+            退階版本
+            <textarea
+              rows={3}
+              value={exercise.regression}
+              onChange={(event) => update("regression", event.target.value)}
+              placeholder="例如：減少幅度、改雙腳、降低阻力…"
+            />
+          </label>
+          <label>
+            變化／進階版本
+            <textarea
+              rows={3}
+              value={exercise.progression}
+              onChange={(event) => update("progression", event.target.value)}
+              placeholder="例如：加入單腳、手臂變化或節奏變化…"
+            />
+          </label>
+          <label>
             常見錯誤
             <textarea
               rows={3}
@@ -3900,6 +4108,7 @@ function ScriptModal({
                     <Tag>{item.reps || "次數 —"}</Tag>
                   </div>
                 </div>
+                <TeachingFlowReadout levels={item.teachingLevels} />
                 <div className="script-cue-list">
                   {[
                     item.cue.preparation,

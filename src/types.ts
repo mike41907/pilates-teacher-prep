@@ -1,5 +1,5 @@
-export const APP_VERSION = "0.2.0";
-export const BACKUP_SCHEMA_VERSION = 2;
+export const APP_VERSION = "0.3.0";
+export const BACKUP_SCHEMA_VERSION = 3;
 
 export type Id = string;
 
@@ -56,6 +56,7 @@ export type AppView =
   | "teaching";
 export type StudyMode = "sequence" | "recall" | "cue";
 export type TeachingTimerMode = "elapsed" | "countdown";
+export type TeachingLevelKind = "regression" | "standard" | "variation";
 
 export interface Cue {
   preparation: string;
@@ -99,6 +100,7 @@ export interface Exercise {
   contraindications: string;
   regression: string;
   progression: string;
+  defaultTeachingLevels?: TeachingLevelTemplate[];
   alternatives: Id[];
   prerequisites: Id[];
   suggestedNext: Id[];
@@ -125,7 +127,21 @@ export interface ExerciseSnapshot {
   footbar: string;
   headrest: string;
   suggestedReps: string;
+  regression: string;
+  progression: string;
 }
+
+export interface TeachingLevel {
+  id: Id;
+  kind: TeachingLevelKind;
+  title: string;
+  instruction: string;
+  cue: string;
+  reps: string;
+  durationSeconds: number;
+}
+
+export type TeachingLevelTemplate = Omit<TeachingLevel, "id">;
 
 export interface Section {
   id: Id;
@@ -147,6 +163,7 @@ export interface CourseExercise {
   note: string;
   familiarity: Familiarity;
   snapshot: ExerciseSnapshot;
+  teachingLevels: TeachingLevel[];
   actualDurationSeconds?: number;
 }
 

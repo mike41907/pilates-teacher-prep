@@ -28,6 +28,15 @@ test("teaching mode shows timers and classroom controls", async ({ page }) => {
   await page.getByRole("button", { name: "暫停" }).click();
   await expect(page.getByRole("button", { name: "繼續" })).toBeVisible();
   await expect(page.getByRole("button", { name: "＋30秒" })).toBeVisible();
+  const teachingFlow = page.getByLabel("退階、正常與變化教學流程");
+  await expect(teachingFlow.getByText("1. 退階")).toBeVisible();
+  await expect(teachingFlow.getByText("2. 正常")).toBeVisible();
+  await expect(teachingFlow.getByText("3. 變化")).toBeVisible();
+  const flowBox = await teachingFlow.boundingBox();
+  expect(flowBox?.x).toBeGreaterThanOrEqual(0);
+  expect((flowBox?.x ?? 0) + (flowBox?.width ?? 0)).toBeLessThanOrEqual(
+    page.viewportSize()!.width,
+  );
 });
 
 test("dialog traps focus, closes with Escape and returns focus", async ({
@@ -43,10 +52,9 @@ test("dialog traps focus, closes with Escape and returns focus", async ({
   await expect(createButton).toBeFocused();
 });
 
-test("teacher can create, arrange, cue and study a course", async (
-  { page },
-  testInfo,
-) => {
+test("teacher can create, arrange, cue and study a course", async ({
+  page,
+}, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.getByRole("button", { name: "新增課程" }).first().click();
   await page.getByLabel("課程名稱").fill("自動測試 Reformer");
@@ -68,19 +76,49 @@ test("teacher can create, arrange, cue and study a course", async (
   await expect(cards.nth(0)).toContainText("Bridge");
 
   await cards.nth(0).getByRole("button", { name: "展開編輯" }).click();
-  await cards.nth(0).getByLabel("動作口令").fill("測試專屬 Cue");
-  await expect(cards.nth(0).getByLabel("動作口令")).toHaveValue(
-    "測試專屬 Cue",
+  await cards.nth(0).getByLabel("退階做法").fill("先做小幅度 Bridge");
+  await cards.nth(0).getByLabel("變化專屬 Cue").fill("加入單腳變化");
+  await expect(cards.nth(0).getByText("教學流程")).toBeVisible();
+  await cards
+    .nth(0)
+    .getByRole("button", { name: "儲存成我的預設三階流程" })
+    .click();
+  await expect(
+    page.getByText("已儲存為這個動作的預設三階流程。"),
+  ).toBeVisible();
+  await addExercise("Bridge");
+  await expect(cards).toHaveCount(3);
+  await cards.nth(2).getByRole("button", { name: "展開編輯" }).click();
+  await expect(cards.nth(2).getByLabel("退階做法")).toHaveValue(
+    "先做小幅度 Bridge",
   );
+  await cards.nth(0).getByRole("button", { name: "展開編輯" }).click();
+  await cards.nth(0).getByLabel("動作口令").fill("測試專屬 Cue");
+  await expect(cards.nth(0).getByLabel("動作口令")).toHaveValue("測試專屬 Cue");
+  await page.getByRole("button", { name: "查看完整腳本" }).click();
+  const script = page.getByRole("dialog", { name: "完整課程腳本" });
+  await expect(
+    script.getByLabel("退階、正常與變化教學流程").first(),
+  ).toBeVisible();
+  await script.getByRole("button", { name: "關閉" }).click();
   await page
     .getByRole("main")
     .getByRole("button", { name: "背課", exact: true })
     .click();
-  await expect(page.getByText("順序背誦", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "只練普通／不熟" })).toBeVisible();
+  await expect(
+    page.getByText("順序背誦", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "只練普通／不熟" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cue 背誦" }).click();
+  await page.getByRole("button", { name: "顯示 Cue" }).click();
+  await expect(page.getByLabel("退階、正常與變化教學流程")).toBeVisible();
 });
 
-test("complete backup downloads valid local data", async ({ page }, testInfo) => {
+test("complete backup downloads valid local data", async ({
+  page,
+}, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.getByRole("button", { name: "開啟設定" }).click();
   const downloadPromise = page.waitForEvent("download");
@@ -90,13 +128,18 @@ test("complete backup downloads valid local data", async ({ page }, testInfo) =>
   expect(await download.failure()).toBeNull();
 });
 
-test("template use button preselects and fills the course", async (
-  { page },
-  testInfo,
-) => {
+test("template use button preselects and fills the course", async ({
+  page,
+}, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390x844");
-  await page.getByLabel("主要導覽").getByRole("button", { name: "備課" }).click();
-  await page.locator(".template-mini-row").getByRole("button", { name: "使用" }).click();
+  await page
+    .getByLabel("主要導覽")
+    .getByRole("button", { name: "備課" })
+    .click();
+  await page
+    .locator(".template-mini-row")
+    .getByRole("button", { name: "使用" })
+    .click();
   await expect(page.getByRole("dialog", { name: "建立新課程" })).toBeVisible();
   await expect(page.getByLabel("課程名稱")).toHaveValue(
     "初階 Reformer 50 分鐘",
@@ -104,10 +147,10 @@ test("template use button preselects and fills the course", async (
   await expect(page.locator(".template-choice select")).not.toHaveValue("");
 });
 
-test("installed shell reloads without a network", async (
-  { page, context },
-  testInfo,
-) => {
+test("installed shell reloads without a network", async ({
+  page,
+  context,
+}, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;

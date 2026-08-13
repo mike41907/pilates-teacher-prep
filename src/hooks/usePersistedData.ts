@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_SETTINGS, type AppData } from "../types";
 import { createDemoData } from "../lib/demoData";
 import { loadData, persistDataChanges, replaceData } from "../lib/db";
+import {
+  dataNeedsTeachingLevelMigration,
+  migrateTeachingLevels,
+} from "../lib/teachingLevels";
 
 const SAVE_DEBOUNCE_MS = 250;
 
@@ -46,6 +50,10 @@ export function usePersistedData() {
           ...loaded,
           settings: { ...DEFAULT_SETTINGS, ...loaded.settings, id: "app" },
         };
+        if (dataNeedsTeachingLevelMigration(loaded)) {
+          loaded = migrateTeachingLevels(loaded);
+          await replaceData(loaded);
+        }
         persistedRef.current = loaded;
         if (active) setData(loaded);
       } catch (error) {

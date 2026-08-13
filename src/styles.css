@@ -1308,6 +1308,100 @@ label select {
   padding-top: 17px;
   border-top: 1px solid var(--line);
 }
+.teaching-flow-editor {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-muted));
+}
+.teaching-level-grid,
+.teaching-flow-readout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.teaching-level-card,
+.flow-level {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--level-color, var(--accent));
+  border-radius: 13px;
+  background: var(--surface);
+}
+.level-regression,
+.flow-regression {
+  --level-color: #7697b5;
+}
+.level-standard,
+.flow-standard {
+  --level-color: #67a28d;
+}
+.level-variation,
+.flow-variation {
+  --level-color: #b78a67;
+}
+.teaching-level-heading,
+.flow-level-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.teaching-level-heading strong,
+.flow-level-top span {
+  color: var(--level-color);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.teaching-level-heading span,
+.flow-level-top small,
+.flow-level-reps {
+  color: var(--muted);
+  font-size: 10px;
+}
+.teaching-level-card > label {
+  display: block;
+  margin-top: 9px;
+}
+.teaching-level-card input,
+.teaching-level-card textarea {
+  margin-top: 4px;
+}
+.teaching-level-fields {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 8px;
+  margin-top: 9px;
+}
+.flow-level > strong {
+  display: block;
+  font-size: 13px;
+}
+.flow-level > p {
+  margin: 7px 0;
+  color: var(--muted-strong);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.flow-level-cue {
+  margin: 7px 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--muted-strong);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.flow-level-cue b {
+  color: var(--level-color);
+}
+.flow-level-reps {
+  display: block;
+  margin-top: 8px;
+}
 .inline-fields {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1746,6 +1840,34 @@ label select {
   justify-content: center;
   gap: 0;
   margin: 44px auto 0;
+}
+.teach-flow-block {
+  margin-top: 28px;
+  text-align: left;
+}
+.teach-flow-block > .teach-label {
+  display: block;
+  margin-bottom: 9px;
+}
+.teaching-flow-live .flow-level {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+.teaching-flow-live .flow-level > strong {
+  color: #f2f7f5;
+  font-size: 15px;
+}
+.teaching-flow-live .flow-level > p,
+.teaching-flow-live .flow-level-cue {
+  color: rgba(242, 247, 245, 0.78);
+  font-size: 12px;
+}
+.teaching-flow-live .flow-level-cue {
+  background: rgba(0, 0, 0, 0.16);
+}
+.teaching-flow-live .flow-level-top small,
+.teaching-flow-live .flow-level-reps {
+  color: rgba(242, 247, 245, 0.55);
 }
 .teach-setup > div {
   min-width: 130px;
@@ -2908,6 +3030,16 @@ label select {
   }
   .view-stack {
     gap: 18px;
+  }
+  .teaching-level-grid,
+  .teaching-flow-readout {
+    grid-template-columns: 1fr;
+  }
+  .teaching-flow-editor {
+    padding: 12px;
+  }
+  .teaching-level-fields {
+    grid-template-columns: 1fr 88px;
   }
   .welcome-row {
     align-items: flex-start;

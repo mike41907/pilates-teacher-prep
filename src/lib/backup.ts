@@ -12,6 +12,7 @@ import {
   type UsageHistory,
 } from "../types";
 import { clone, nowIso } from "./utils";
+import { migrateTeachingLevels } from "./teachingLevels";
 
 type JsonObject = Record<string, unknown>;
 
@@ -112,10 +113,45 @@ function exerciseAt(value: unknown, index: number): Exercise {
   stringAt(description.flow, `${path}.description.flow`);
   stringAt(description.endPosition, `${path}.description.endPosition`);
   cueAt(item.defaultCue, `${path}.defaultCue`);
+  if (item.defaultTeachingLevels !== undefined) {
+    if (!Array.isArray(item.defaultTeachingLevels))
+      throw new Error(`${path}.defaultTeachingLevels 必須是陣列。`);
+    item.defaultTeachingLevels.forEach((level, levelIndex) => {
+      const levelPath = `${path}.defaultTeachingLevels[${levelIndex}]`;
+      const levelObject = objectAt(level, levelPath);
+      for (const key of ["title", "instruction", "cue", "reps"])
+        stringAt(levelObject[key], `${levelPath}.${key}`);
+      enumAt(
+        levelObject.kind,
+        ["regression", "standard", "variation"],
+        `${levelPath}.kind`,
+      );
+      numberAt(levelObject.durationSeconds, `${levelPath}.durationSeconds`);
+    });
+    const kinds = item.defaultTeachingLevels.map((level) =>
+      stringAt(
+        objectAt(level, `${path}.defaultTeachingLevels`).kind,
+        `${path}.defaultTeachingLevels.kind`,
+      ),
+    );
+    if (
+      item.defaultTeachingLevels.length !== 3 ||
+      !["regression", "standard", "variation"].every((kind) =>
+        kinds.includes(kind),
+      )
+    )
+      throw new Error(
+        `${path}.defaultTeachingLevels 必須包含退階、正常與變化。`,
+      );
+  }
   return clone(item) as unknown as Exercise;
 }
 
-function courseExerciseAt(value: unknown, path: string): CourseExercise {
+function courseExerciseAt(
+  value: unknown,
+  path: string,
+  schemaVersion: number,
+): CourseExercise {
   const item = objectAt(value, path);
   for (const key of [
     "id",
@@ -147,15 +183,52 @@ function courseExerciseAt(value: unknown, path: string): CourseExercise {
     "suggestedReps",
   ])
     stringAt(snapshot[key], `${path}.snapshot.${key}`);
+  for (const key of ["regression", "progression"])
+    if (schemaVersion >= 3 || snapshot[key] !== undefined)
+      stringAt(snapshot[key], `${path}.snapshot.${key}`);
   for (const key of ["primaryAreas", "startPositions", "specialConditions"])
     stringArrayAt(snapshot[key], `${path}.snapshot.${key}`);
   cueAt(snapshot.defaultCue, `${path}.snapshot.defaultCue`);
+  if (schemaVersion >= 3 && !Array.isArray(item.teachingLevels))
+    throw new Error(`${path}.teachingLevels 必須是陣列。`);
+  if (item.teachingLevels !== undefined) {
+    if (!Array.isArray(item.teachingLevels))
+      throw new Error(`${path}.teachingLevels 必須是陣列。`);
+    item.teachingLevels.forEach((level, levelIndex) => {
+      const levelPath = `${path}.teachingLevels[${levelIndex}]`;
+      const levelObject = objectAt(level, levelPath);
+      for (const key of ["id", "kind", "title", "instruction", "cue", "reps"])
+        stringAt(levelObject[key], `${levelPath}.${key}`);
+      enumAt(
+        levelObject.kind,
+        ["regression", "standard", "variation"],
+        `${levelPath}.kind`,
+      );
+      numberAt(levelObject.durationSeconds, `${levelPath}.durationSeconds`);
+    });
+    if (schemaVersion >= 3) {
+      const kinds = item.teachingLevels.map((level) =>
+        stringAt(
+          objectAt(level, `${path}.teachingLevels`).kind,
+          `${path}.teachingLevels.kind`,
+        ),
+      );
+      if (
+        item.teachingLevels.length !== 3 ||
+        !["regression", "standard", "variation"].every((kind) =>
+          kinds.includes(kind),
+        )
+      )
+        throw new Error(`${path}.teachingLevels 必須包含退階、正常與變化。`);
+    }
+  }
   return clone(item) as unknown as CourseExercise;
 }
 
 function courseAt(
   value: unknown,
   index: number,
+  schemaVersion: number,
   prefix = "data.courses",
 ): Course {
   const path = `${prefix}[${index}]`;
@@ -188,7 +261,11 @@ function courseAt(
   if (!Array.isArray(item.exercises))
     throw new Error(`${path}.exercises 必須是陣列。`);
   item.exercises.forEach((exercise, exerciseIndex) =>
-    courseExerciseAt(exercise, `${path}.exercises[${exerciseIndex}]`),
+    courseExerciseAt(
+      exercise,
+      `${path}.exercises[${exerciseIndex}]`,
+      schemaVersion,
+    ),
   );
   for (const key of ["lastOpenedAt", "lastStudiedItemId", "lastTaughtAt"])
     if (item[key] !== undefined) stringAt(item[key], `${path}.${key}`);
@@ -219,16 +296,20 @@ function usageAt(value: unknown, index: number): UsageHistory {
   return clone(item) as unknown as UsageHistory;
 }
 
-function templateAt(value: unknown, index: number): Template {
+function templateAt(
+  value: unknown,
+  index: number,
+  schemaVersion: number,
+): Template {
   const path = `data.templates[${index}]`;
   const item = objectAt(value, path);
   for (const key of ["id", "name", "description", "createdAt", "updatedAt"])
     stringAt(item[key], `${path}.${key}`);
-  courseAt(item.course, 0, `${path}.course`);
+  courseAt(item.course, 0, schemaVersion, `${path}.course`);
   return clone(item) as unknown as Template;
 }
 
-function validateData(value: unknown): AppData {
+function validateData(value: unknown, schemaVersion: number): AppData {
   const data = objectAt(value, "data");
   if (
     !Array.isArray(data.exercises) ||
@@ -272,8 +353,12 @@ function validateData(value: unknown): AppData {
     booleanAt(normalizedSettings[key], `data.settings.${key}`);
   return {
     exercises: data.exercises.map(exerciseAt),
-    courses: data.courses.map((course, index) => courseAt(course, index)),
-    templates: data.templates.map(templateAt),
+    courses: data.courses.map((course, index) =>
+      courseAt(course, index, schemaVersion),
+    ),
+    templates: data.templates.map((template, index) =>
+      templateAt(template, index, schemaVersion),
+    ),
     usageHistory: data.usageHistory.map(usageAt),
     settings: normalizedSettings,
   };
@@ -313,7 +398,7 @@ export function parseBackup(raw: string): BackupEnvelope {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion,
     exportedAt,
-    data: validateData(envelope.data),
+    data: migrateTeachingLevels(validateData(envelope.data, schemaVersion)),
   };
 }
 

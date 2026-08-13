@@ -147,6 +147,8 @@ export function snapshotFromExercise(exercise: Exercise): ExerciseSnapshot {
     footbar: exercise.footbar,
     headrest: exercise.headrest,
     suggestedReps: exercise.suggestedReps,
+    regression: exercise.regression,
+    progression: exercise.progression,
   };
 }
 

@@ -28,6 +28,7 @@ import {
   MaximizeIcon,
   VolumeIcon,
 } from "./Icons";
+import { TeachingFlowReadout } from "./TeachingFlowReadout";
 
 interface TeachingViewProps {
   course: Course;
@@ -431,6 +432,14 @@ export function TeachingView({
             <span>Footbar</span>
             <strong>{item.footbar || "—"}</strong>
           </div>
+        </div>
+        <div className="teach-flow-block">
+          <span className="teach-label">教學順序</span>
+          <TeachingFlowReadout
+            levels={item.teachingLevels}
+            teaching
+            showCue={settings.showCueInTeaching}
+          />
         </div>
         {settings.showCueInTeaching && (
           <div className="teach-cue">
