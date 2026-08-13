@@ -1362,6 +1362,24 @@ function ExerciseVideoPreview({ exercise }: { exercise: Exercise }) {
   );
 }
 
+function ExternalExerciseResources({ exercise }: { exercise: Exercise }) {
+  if (!exercise.demoVideoUrl) return null;
+  return (
+    <div className="external-resource-links">
+      {exercise.demoVideoUrl && (
+        <a
+          className="small-button external-link-button"
+          href={exercise.demoVideoUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <PlayIcon size={15} /> 線上示範
+        </a>
+      )}
+    </div>
+  );
+}
+
 function ExerciseLibraryCard({
   exercise,
   usageCount,
@@ -1449,6 +1467,7 @@ function ExerciseLibraryCard({
         </div>
       ) : null}
       <ExerciseVideoPreview exercise={exercise} />
+      <ExternalExerciseResources exercise={exercise} />
       {!compact && (
         <div className="exercise-card-bottom">
           <span className="muted-text">
@@ -4066,6 +4085,18 @@ function ExerciseModal({
       setValidationError("請至少填寫中文名稱或英文名稱。");
       return;
     }
+    for (const [value, label] of [
+      [exercise.sourceUrl, "資料來源"],
+      [exercise.demoVideoUrl, "線上示範影片"],
+    ] as const) {
+      if (!value?.trim()) continue;
+      try {
+        if (new URL(value).protocol !== "https:") throw new Error();
+      } catch {
+        setValidationError(`${label}必須是有效的 HTTPS 網址。`);
+        return;
+      }
+    }
     setValidationError("");
     setMediaBusy(true);
     try {
@@ -4091,6 +4122,8 @@ function ExerciseModal({
           .map((part) => part.trim())
           .filter(Boolean),
       ),
+      sourceUrl: exercise.sourceUrl?.trim() || undefined,
+      demoVideoUrl: exercise.demoVideoUrl?.trim() || undefined,
     });
   };
   return (
@@ -4278,6 +4311,55 @@ function ExerciseModal({
             />
           ))}
         </div>
+        <div className="external-resource-fields">
+          <label>
+            資料來源網址
+            <input
+              type="url"
+              inputMode="url"
+              value={exercise.sourceUrl ?? ""}
+              onChange={(event) => update("sourceUrl", event.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+          <label>
+            線上示範影片網址
+            <input
+              type="url"
+              inputMode="url"
+              value={exercise.demoVideoUrl ?? ""}
+              onChange={(event) => update("demoVideoUrl", event.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+        </div>
+        {(exercise.sourceUrl || exercise.demoVideoUrl) && (
+          <div className="external-resource-links">
+            {exercise.sourceUrl && (
+              <a
+                className="small-button external-link-button"
+                href={exercise.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                開啟資料來源 ↗
+              </a>
+            )}
+            {exercise.demoVideoUrl && (
+              <a
+                className="small-button external-link-button"
+                href={exercise.demoVideoUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <PlayIcon size={15} /> 開啟線上示範
+              </a>
+            )}
+          </div>
+        )}
+        <p className="muted-text small external-resource-note">
+          線上來源需要網路；老師自己的短片仍會保存在此裝置並可離線播放。
+        </p>
         {mediaMessage && (
           <p className="media-message" role="status">
             {mediaMessage}

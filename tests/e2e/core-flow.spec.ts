@@ -137,7 +137,10 @@ test("exercise reminder video is stored offline and shown in the library", async
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.getByRole("button", { name: "動作庫" }).click();
   await page.getByLabel("搜尋動作庫").fill("Footwork");
-  const card = page.locator(".exercise-card").filter({ hasText: "Footwork" });
+  const card = page
+    .locator(".exercise-card")
+    .filter({ has: page.getByText("Footwork", { exact: true }) })
+    .first();
   await card.getByRole("button", { name: "編輯" }).click();
   const dialog = page.getByRole("dialog", { name: "編輯動作" });
   const videoSlot = dialog
@@ -159,7 +162,8 @@ test("exercise reminder video is stored offline and shown in the library", async
   await expect(
     page
       .locator(".exercise-card")
-      .filter({ hasText: "Footwork" })
+      .filter({ has: page.getByText("Footwork", { exact: true }) })
+      .first()
       .getByRole("button", { name: /快速回想/ }),
   ).toBeVisible();
   await page.getByRole("button", { name: "開啟設定" }).click();
@@ -172,6 +176,36 @@ test("exercise reminder video is stored offline and shown in the library", async
   expect(backup.media).toHaveLength(1);
   expect(backup.media[0].fileName).toBe("footwork-reminder.webm");
   expect(backup.media[0].dataUrl).toMatch(/^data:video\/webm;base64,/);
+});
+
+test("built-in apparatus catalog is searchable and links to verified demos", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390x844");
+  await page.getByRole("button", { name: "動作庫" }).click();
+  await expect(page.getByText("135 個動作", { exact: true })).toBeVisible();
+
+  const search = page.getByLabel("搜尋動作庫");
+  await search.fill("Going Up Front");
+  const chairCard = page
+    .locator(".exercise-card")
+    .filter({ hasText: "Going Up Front" });
+  await expect(chairCard).toContainText("Chair");
+  await expect(
+    chairCard.getByRole("link", { name: "線上示範" }),
+  ).toHaveAttribute("href", /^https:\/\/www\.pilatesanytime\.com\//);
+
+  await search.fill("Monkey");
+  await expect(
+    page.locator(".exercise-card").filter({ hasText: "Monkey" }),
+  ).toContainText("Cadillac");
+
+  await search.fill("Ladder Barrel Handstand");
+  await expect(
+    page
+      .locator(".exercise-card")
+      .filter({ hasText: "Ladder Barrel Handstand" }),
+  ).toContainText("Barrel");
 });
 
 test("template use button preselects and fills the course", async ({

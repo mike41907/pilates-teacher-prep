@@ -1,0 +1,8 @@
+id,title,publisher,url,type,credibility,recency,bias
+S1,Pilates Reformer Order,Contrology Cohort,https://contrologycohort.com/pilates-reformer-order/,lineage list,4,4,classical lineage
+S2,Trapeze Table Manual,Balanced Body,https://s3.amazonaws.com/s3.pilates.com/resources/instructions/400-346_CE-Manual-Trap_0519.pdf,manufacturer manual,5,3,brand specific
+S3,Classical Ladder Barrel Exercises,Pilatesology,https://pilatesology.com/wp-content/uploads/2022/01/Classical-Ladder-Barrel-Exercises.pdf,education list,4,4,classical repertoire
+S4,Wunda Chair Classical Exercises and Order,Pilatesology,https://pilatesology.com/wp-content/uploads/2025/03/Wunda-Chair-Classical-Exercises-Order.pdf,education list,4,5,classical repertoire
+S5,Trapeze Table Exercise List,Birmingham Pilates Studios,https://www.birminghampilatesstudios.com/courses/trapeze-table/lessons/trapeze-table-exercise-list/,studio education list,3,4,studio curriculum
+S6,Exercise Lists 2025 Reformer,Vintage Pilates,https://s3.amazonaws.com/kajabi-storefronts-production/file-uploads/sites/2147566588/themes/2150498899/downloads/70caaf-55c2-3478-3166-1b77ce8424ef_Exercise_Lists_2025_Reformer_Exercises.pdf,teacher program list,4,5,classical program
+S7,Exercise tutorials,Pilates Anytime,https://www.pilatesanytime.com/exercise-view/,video education library,4,5,subscription platform

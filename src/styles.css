@@ -995,6 +995,28 @@ kbd {
 .video-slot-actions .small-button {
   min-height: 44px;
 }
+
+.external-resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.external-link-button {
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.external-resource-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.external-resource-note {
+  margin: -3px 0 0;
+}
 .compact-pick-button {
   width: 100%;
   min-height: 40px;
@@ -3149,6 +3171,9 @@ label select {
     grid-template-columns: 1fr;
   }
   .video-slot-grid {
+    grid-template-columns: 1fr;
+  }
+  .external-resource-fields {
     grid-template-columns: 1fr;
   }
   .video-slot-card {

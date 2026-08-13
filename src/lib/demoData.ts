@@ -12,6 +12,10 @@ import {
 } from "../types";
 import { localDateIso, newId, nowIso, snapshotFromExercise } from "./utils";
 import { createTeachingLevels } from "./teachingLevels";
+import {
+  EXERCISE_CATALOG_VERSION,
+  mergeExerciseCatalog,
+} from "./exerciseCatalog";
 
 type ExerciseSeed = {
   id: string;
@@ -119,7 +123,7 @@ function makeCourseExercise(
 
 export function createDemoData(): AppData {
   const timestamp = nowIso();
-  const exercises = [
+  const baseExercises = [
     createExercise(
       {
         id: "demo-footwork",
@@ -448,6 +452,7 @@ export function createDemoData(): AppData {
       timestamp,
     ),
   ];
+  const exercises = mergeExerciseCatalog(baseExercises, timestamp);
 
   const warmup = {
     id: "section-warmup",
@@ -522,6 +527,9 @@ export function createDemoData(): AppData {
       },
     ],
     usageHistory,
-    settings: { ...DEFAULT_SETTINGS },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      exerciseCatalogVersion: EXERCISE_CATALOG_VERSION,
+    },
   };
 }

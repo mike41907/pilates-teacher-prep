@@ -15,6 +15,7 @@ import {
 } from "../types";
 import { clone, nowIso } from "./utils";
 import { migrateTeachingLevels } from "./teachingLevels";
+import { migrateExerciseCatalog } from "./exerciseCatalog";
 
 type JsonObject = Record<string, unknown>;
 
@@ -80,6 +81,17 @@ function videoRefAt(value: unknown, path: string): ExerciseVideoRef {
   };
 }
 
+function optionalHttpsUrlAt(value: unknown, path: string): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  const url = stringAt(value, path);
+  try {
+    if (new URL(url).protocol !== "https:") throw new Error();
+  } catch {
+    throw new Error(`${path} 必須是有效的 HTTPS 網址。`);
+  }
+  return url;
+}
+
 function exerciseAt(value: unknown, index: number): Exercise {
   const path = `data.exercises[${index}]`;
   const item = objectAt(value, path);
@@ -126,6 +138,8 @@ function exerciseAt(value: unknown, index: number): Exercise {
   stringAt(description.flow, `${path}.description.flow`);
   stringAt(description.endPosition, `${path}.description.endPosition`);
   cueAt(item.defaultCue, `${path}.defaultCue`);
+  optionalHttpsUrlAt(item.sourceUrl, `${path}.sourceUrl`);
+  optionalHttpsUrlAt(item.demoVideoUrl, `${path}.demoVideoUrl`);
   if (item.videoRefs !== undefined) {
     const references = objectAt(item.videoRefs, `${path}.videoRefs`);
     for (const slot of ["overview", "regression", "standard", "variation"])
@@ -376,6 +390,10 @@ function validateData(value: unknown, schemaVersion: number): AppData {
     ["light", "dark", "system"],
     "data.settings.theme",
   );
+  numberAt(
+    normalizedSettings.exerciseCatalogVersion,
+    "data.settings.exerciseCatalogVersion",
+  );
   enumAt(
     normalizedSettings.leadFontSize,
     ["normal", "large", "xlarge"],
@@ -450,8 +468,8 @@ export function parseBackup(raw: string): BackupEnvelope {
   const media = Array.isArray(envelope.media)
     ? envelope.media.map(mediaAt)
     : [];
-  const parsedData = migrateTeachingLevels(
-    validateData(envelope.data, schemaVersion),
+  const parsedData = migrateExerciseCatalog(
+    migrateTeachingLevels(validateData(envelope.data, schemaVersion)),
   );
   for (const exercise of parsedData.exercises) {
     for (const [slot, reference] of Object.entries(exercise.videoRefs ?? {})) {

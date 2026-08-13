@@ -15,6 +15,10 @@ import {
   dataNeedsTeachingLevelMigration,
   migrateTeachingLevels,
 } from "../lib/teachingLevels";
+import {
+  dataNeedsExerciseCatalogMigration,
+  migrateExerciseCatalog,
+} from "../lib/exerciseCatalog";
 
 const SAVE_DEBOUNCE_MS = 250;
 
@@ -59,10 +63,16 @@ export function usePersistedData() {
           ...loaded,
           settings: { ...DEFAULT_SETTINGS, ...loaded.settings, id: "app" },
         };
+        let needsReplace = false;
+        if (dataNeedsExerciseCatalogMigration(loaded)) {
+          loaded = migrateExerciseCatalog(loaded);
+          needsReplace = true;
+        }
         if (dataNeedsTeachingLevelMigration(loaded)) {
           loaded = migrateTeachingLevels(loaded);
-          await replaceData(loaded);
+          needsReplace = true;
         }
+        if (needsReplace) await replaceData(loaded);
         persistedRef.current = loaded;
         if (active) setData(loaded);
       } catch (error) {

@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.5.0";
 export const BACKUP_SCHEMA_VERSION = 4;
 
 export type Id = string;
@@ -121,6 +121,8 @@ export interface Exercise {
   progression: string;
   defaultTeachingLevels?: TeachingLevelTemplate[];
   videoRefs?: Partial<Record<ExerciseVideoSlot, ExerciseVideoRef>>;
+  sourceUrl?: string;
+  demoVideoUrl?: string;
   alternatives: Id[];
   prerequisites: Id[];
   suggestedNext: Id[];
@@ -248,6 +250,7 @@ export interface AppSettings {
   teachingTimerMode: TeachingTimerMode;
   timerSound: boolean;
   timerVibration: boolean;
+  exerciseCatalogVersion: number;
 }
 
 export interface AppData {
@@ -360,4 +363,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   teachingTimerMode: "elapsed",
   timerSound: false,
   timerVibration: false,
+  exerciseCatalogVersion: 0,
 };
