@@ -1,0 +1,120 @@
+import type { AppData, AppSettings, Course, Exercise, Template, UsageHistory } from '../types'
+
+const DB_NAME = 'pilates-prep-local'
+const DB_VERSION = 1
+
+type StoreName = 'exercises' | 'courses' | 'templates' | 'usageHistory' | 'settings'
+
+let databasePromise: Promise<IDBDatabase> | null = null
+
+function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'))
+  })
+}
+
+function transactionToPromise(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB transaction failed'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'))
+  })
+}
+
+export function openDatabase(): Promise<IDBDatabase> {
+  if (databasePromise) return databasePromise
+  databasePromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    request.onupgradeneeded = () => {
+      const database = request.result
+      const exercises = database.objectStoreNames.contains('exercises')
+        ? request.transaction!.objectStore('exercises')
+        : database.createObjectStore('exercises', { keyPath: 'id' })
+      if (!exercises.indexNames.contains('apparatus')) exercises.createIndex('apparatus', 'apparatus')
+      if (!exercises.indexNames.contains('level')) exercises.createIndex('level', 'level')
+      if (!exercises.indexNames.contains('updatedAt')) exercises.createIndex('updatedAt', 'updatedAt')
+
+      const courses = database.objectStoreNames.contains('courses')
+        ? request.transaction!.objectStore('courses')
+        : database.createObjectStore('courses', { keyPath: 'id' })
+      if (!courses.indexNames.contains('date')) courses.createIndex('date', 'date')
+      if (!courses.indexNames.contains('updatedAt')) courses.createIndex('updatedAt', 'updatedAt')
+
+      const templates = database.objectStoreNames.contains('templates')
+        ? request.transaction!.objectStore('templates')
+        : database.createObjectStore('templates', { keyPath: 'id' })
+      if (!templates.indexNames.contains('updatedAt')) templates.createIndex('updatedAt', 'updatedAt')
+
+      const usage = database.objectStoreNames.contains('usageHistory')
+        ? request.transaction!.objectStore('usageHistory')
+        : database.createObjectStore('usageHistory', { keyPath: 'id' })
+      if (!usage.indexNames.contains('exerciseId')) usage.createIndex('exerciseId', 'exerciseId')
+      if (!usage.indexNames.contains('usedAt')) usage.createIndex('usedAt', 'usedAt')
+
+      if (!database.objectStoreNames.contains('settings')) database.createObjectStore('settings', { keyPath: 'id' })
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('無法開啟本機資料庫'))
+  })
+  return databasePromise
+}
+
+export async function getAll<T>(storeName: StoreName): Promise<T[]> {
+  const database = await openDatabase()
+  const transaction = database.transaction(storeName, 'readonly')
+  return requestToPromise(transaction.objectStore(storeName).getAll())
+}
+
+export async function getOne<T>(storeName: StoreName, key: IDBValidKey): Promise<T | undefined> {
+  const database = await openDatabase()
+  const transaction = database.transaction(storeName, 'readonly')
+  return requestToPromise(transaction.objectStore(storeName).get(key))
+}
+
+export async function putOne<T extends { id: IDBValidKey }>(storeName: StoreName, value: T): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction(storeName, 'readwrite')
+  transaction.objectStore(storeName).put(value)
+  await transactionToPromise(transaction)
+}
+
+export async function deleteOne(storeName: StoreName, key: IDBValidKey): Promise<void> {
+  const database = await openDatabase()
+  const transaction = database.transaction(storeName, 'readwrite')
+  transaction.objectStore(storeName).delete(key)
+  await transactionToPromise(transaction)
+}
+
+export async function replaceData(data: AppData): Promise<void> {
+  const database = await openDatabase()
+  const stores: StoreName[] = ['exercises', 'courses', 'templates', 'usageHistory', 'settings']
+  const transaction = database.transaction(stores, 'readwrite')
+  for (const storeName of stores) transaction.objectStore(storeName).clear()
+  for (const exercise of data.exercises) transaction.objectStore('exercises').put(exercise)
+  for (const course of data.courses) transaction.objectStore('courses').put(course)
+  for (const template of data.templates) transaction.objectStore('templates').put(template)
+  for (const history of data.usageHistory) transaction.objectStore('usageHistory').put(history)
+  transaction.objectStore('settings').put(data.settings)
+  await transactionToPromise(transaction)
+}
+
+export async function loadData(): Promise<AppData> {
+  const [exercises, courses, templates, usageHistory, settings] = await Promise.all([
+    getAll<Exercise>('exercises'),
+    getAll<Course>('courses'),
+    getAll<Template>('templates'),
+    getAll<UsageHistory>('usageHistory'),
+    getOne<AppSettings>('settings', 'app'),
+  ])
+  if (!settings) throw new Error('本機設定遺失，請重新載入頁面。')
+  return { exercises, courses, templates, usageHistory, settings }
+}
+
+export async function clearAllData(): Promise<void> {
+  const database = await openDatabase()
+  const stores: StoreName[] = ['exercises', 'courses', 'templates', 'usageHistory', 'settings']
+  const transaction = database.transaction(stores, 'readwrite')
+  for (const storeName of stores) transaction.objectStore(storeName).clear()
+  await transactionToPromise(transaction)
+}
