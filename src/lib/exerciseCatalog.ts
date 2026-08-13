@@ -9,7 +9,7 @@ import type {
   StartPosition,
 } from "../types";
 
-export const EXERCISE_CATALOG_VERSION = 1;
+export const EXERCISE_CATALOG_VERSION = 2;
 
 const SOURCES = {
   reformer: "https://contrologycohort.com/pilates-reformer-order/",
@@ -23,7 +23,28 @@ const SOURCES = {
     "https://pilatesology.com/wp-content/uploads/2025/03/Wunda-Chair-Classical-Exercises-Order.pdf",
   barrel:
     "https://pilatesology.com/wp-content/uploads/2022/01/Classical-Ladder-Barrel-Exercises.pdf",
+  annabel: "https://www.instagram.com/wellnessbyannabel/",
 } as const;
+
+const ANNABEL_REELS = {
+  longBoxKneeling:
+    "https://www.instagram.com/wellnessbyannabel/reel/Db8Zpr8Ooef/",
+  lightSpringArms:
+    "https://www.instagram.com/wellnessbyannabel/reel/Db3Nu5cO-cS/",
+  quadrupedLegLift:
+    "https://www.instagram.com/wellnessbyannabel/reel/Dbuz1hduNAe/",
+  fixedBoxBridge:
+    "https://www.instagram.com/wellnessbyannabel/reel/DbqYFunumqa/",
+  gluteBoxFlow: "https://www.instagram.com/wellnessbyannabel/reel/DblPCQAujin/",
+  stabilityArms:
+    "https://www.instagram.com/wellnessbyannabel/reel/Dba723cuYpC/",
+  longBoxLegStrap:
+    "https://www.instagram.com/wellnessbyannabel/reel/DbP7_NFOs3W/",
+  ballFlow: "https://www.instagram.com/wellnessbyannabel/reel/DbLJ8quOJCG/",
+} as const;
+
+const ANNABEL_NOTE =
+  "靈感來源為 @wellnessbyannabel 公開 Reel；採描述性名稱方便備課，不代表原作者正式命名或唯一教學標準。";
 
 const VIDEOS = {
   footwork:
@@ -56,6 +77,14 @@ type Seed = {
   usesBox?: boolean;
   conditions?: SpecialCondition[];
   aliases?: string[];
+  spring?: string;
+  footbar?: string;
+  headrest?: string;
+  descriptionFlow?: string;
+  cueMovement?: string;
+  regression?: string;
+  progression?: string;
+  personalNote?: string;
   sourceUrl: string;
   demoVideoUrl?: string;
 };
@@ -680,6 +709,217 @@ const reformerSeeds: Seed[] = [
     ["核心", "大腿", "肩膀"],
     ["支撐姿勢"],
     { conditions: ["手腕負重", "肩膀負重"] },
+  ),
+  R(
+    "catalog-ref-annabel-longbox-tall-kneeling-overhead",
+    "長箱高跪姿過頭拉繩（Annabel 變化）",
+    "Long Box Tall-Kneeling Overhead Strap Press (Annabel Variation)",
+    "中階",
+    ["肩膀", "手臂", "核心"],
+    ["跪姿"],
+    {
+      aliases: ["Long Box Kneeling Arms", "長箱跪姿手臂"],
+      usesBox: true,
+      conditions: ["膝蓋負重", "平衡需求"],
+      descriptionFlow:
+        "高跪於長箱並保持軀幹穩定，雙手持拉繩完成受控制的過頭手臂路徑。",
+      cueMovement: "肋骨保持連結，手臂移動時避免腰椎代償或聳肩。",
+      regression: "改為坐姿或坐在腳跟上，縮小過頭幅度並降低阻力。",
+      progression: "維持高跪姿，加入停留、節奏或更長的手臂路徑。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.longBoxKneeling,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-longbox-half-kneeling-arm-open",
+    "長箱半跪姿單臂開展（Annabel 變化）",
+    "Long Box Half-Kneeling Arm Open (Annabel Variation)",
+    "中高階",
+    ["肩膀", "手臂", "核心", "平衡"],
+    ["跪姿"],
+    {
+      aliases: ["Half-Kneeling Arm Open", "Light Spring Arm Flow"],
+      usesBox: true,
+      conditions: ["膝蓋負重", "單側", "平衡需求"],
+      spring: "原貼文使用輕彈簧；請依品牌與學員換算",
+      descriptionFlow:
+        "在長箱上採半跪姿，以單側拉繩搭配另一側手臂開展，維持骨盆與軀幹穩定。",
+      cueMovement: "先固定骨盆，再讓手臂向側方展開；避免身體跟著拉繩旋轉。",
+      regression: "拿掉手持輔具、改坐姿或增加支撐面。",
+      progression: "在動作穩定後加入輕量輔具或更長的離心控制。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.lightSpringArms,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-quadruped-headrest-leg-lift",
+    "四足跪手扶頭枕單腿抬舉（Annabel 變化）",
+    "Quadruped Leg Lift – Hands on Headrest (Annabel Variation)",
+    "中階",
+    ["臀部", "核心", "穩定"],
+    ["四足跪姿"],
+    {
+      aliases: ["Quadruped Donkey Kick", "四足跪抬腿"],
+      conditions: ["手腕負重", "肩膀負重", "膝蓋負重", "單側"],
+      spring: "原貼文使用單一輕彈簧；請依品牌與學員換算",
+      headrest: "作為手部支撐，先確認穩固",
+      descriptionFlow:
+        "雙手或前臂支撐頭枕，一膝跪在 Carriage，另一腿向後上方伸長並控制回來。",
+      cueMovement: "保持骨盆朝下與肩胛穩定，抬腿來自髖部而不是腰椎擠壓。",
+      regression: "先不移動 Carriage，只做小幅度腿部伸長或抬舉。",
+      progression: "在骨盆穩定下加入 Carriage 滑動、脈衝或腿部路徑變化。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.quadrupedLegLift,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-longbox-shoulder-bridge",
+    "長箱肩背支撐橋式（Annabel 變化）",
+    "Long Box Shoulder-Supported Bridge (Annabel Variation)",
+    "中階",
+    ["臀部", "大腿", "核心"],
+    ["仰躺"],
+    {
+      aliases: ["Elevated Bridge on Long Box", "箱上橋式"],
+      usesBox: true,
+      conditions: ["雙腳"],
+      footbar: "依腳部支撐位置調整或收起",
+      descriptionFlow:
+        "肩背由固定長箱支撐，雙腳踩在穩定支撐點，抬起與放下骨盆完成橋式。",
+      cueMovement: "腳掌平均施力，讓骨盆由臀腿帶起，避免重量壓向頸部。",
+      regression: "回到 Carriage 上的一般橋式，降低肩背高度。",
+      progression: "在骨盆穩定後加入停留、脈衝或單腳預備。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.fixedBoxBridge,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-box-assisted-scooter",
+    "箱輔助分腿蹲滑行（Annabel 變化）",
+    "Box-Assisted Split Squat / Scooter (Annabel Variation)",
+    "中階",
+    ["臀部", "大腿", "髖部", "平衡"],
+    ["站姿"],
+    {
+      aliases: ["Box-Assisted Scooter", "Elevated Scooter"],
+      usesBox: true,
+      conditions: ["單腳", "單側", "平衡需求"],
+      descriptionFlow:
+        "一腳站在固定長箱，另一膝或腳由 Carriage 支撐，以分腿蹲姿控制 Carriage 滑動。",
+      cueMovement: "前腳三點平均踩穩，骨盆保持朝前，去程與回程都由臀腿控制。",
+      regression: "縮短滑動距離、移除手持輔具，並提供固定扶握。",
+      progression: "加入手臂動作、停留或輕量輔具，但不犧牲骨盆穩定。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.gluteBoxFlow,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-longbox-seated-goalpost",
+    "長箱坐姿 Goalpost 手臂拉繩（Annabel 變化）",
+    "Long Box Seated Goalpost Arm Press (Annabel Variation)",
+    "中階",
+    ["肩膀", "手臂", "背部", "核心"],
+    ["坐姿"],
+    {
+      aliases: ["Seated Goalpost Arms", "長箱坐姿手臂"],
+      usesBox: true,
+      descriptionFlow:
+        "坐在長箱上，雙手持拉繩並維持 Goalpost 手臂位置，控制手臂開合或上推。",
+      cueMovement: "坐骨穩定、肋骨保持連結，手肘移動時肩膀遠離耳朵。",
+      regression: "減少阻力與手臂高度，或先做單純肩胛控制。",
+      progression: "加入軀幹穩定挑戰、節奏或單側手臂變化。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.stabilityArms,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-longbox-quadruped-leg-strap",
+    "長箱四足跪單腿腳套伸展（Annabel 變化）",
+    "Long Box Quadruped Single-Leg Strap Extension (Annabel Variation)",
+    "中高階",
+    ["臀部", "核心", "髖部", "穩定"],
+    ["四足跪姿"],
+    {
+      aliases: ["Quadruped Leg Strap", "長箱單腿腳套"],
+      usesBox: true,
+      conditions: ["手腕負重", "肩膀負重", "膝蓋負重", "單側"],
+      descriptionFlow:
+        "四足跪於長箱，單腳套入拉繩向後伸長，再控制髖部回到起始位置。",
+      cueMovement: "支撐側肩胛與骨盆保持穩定，腿向後延伸而非把腰椎壓低。",
+      regression: "先不使用腳套，練習徒手單腿伸長或縮小活動範圍。",
+      progression: "在軀幹穩定後加入腿部高度、停留或小幅度脈衝。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.longBoxLegStrap,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-box-ball-ab-curl",
+    "箱上球輔助腹部捲曲（Annabel 變化）",
+    "Box-Supported Abdominal Curl with Ball (Annabel Variation)",
+    "初中階",
+    ["核心", "穩定"],
+    ["仰躺"],
+    {
+      aliases: ["Ab Curl with Ball", "箱上腹部捲曲"],
+      usesBox: true,
+      conditions: ["頸椎負荷"],
+      descriptionFlow:
+        "骨盆或腰背由箱與小球支撐，雙腿彎曲，完成小幅度胸椎屈曲與控制回程。",
+      cueMovement: "視線朝膝蓋方向，胸骨向骨盆靠近；避免用手拉頭或甩動。",
+      regression: "增加頭頸支撐、縮小捲曲幅度，或讓雙腳保持固定支撐。",
+      progression: "維持軀幹控制後加入腿部變化、停留或手臂路徑。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.ballFlow,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-box-split-squat-ball-reach",
+    "箱輔助分腿蹲＋球夾手臂變化（Annabel 變化）",
+    "Box-Assisted Split Squat with Ball & Arm Reach (Annabel Variation)",
+    "中高階",
+    ["臀部", "大腿", "核心", "平衡"],
+    ["站姿"],
+    {
+      aliases: ["Split Squat Ball Flow", "箱輔助弓箭步"],
+      usesBox: true,
+      conditions: ["單腳", "單側", "平衡需求"],
+      descriptionFlow:
+        "以箱與 Carriage 建立分腿站姿，搭配小球夾持及單側手臂前伸或划動。",
+      cueMovement: "先穩定下肢與骨盆，再加入手臂；Carriage 回程不可失去控制。",
+      regression: "拿掉小球與手臂負重，提供扶握並縮短 Carriage 行程。",
+      progression: "加入輕量輔具、手臂路徑或底部停留。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.ballFlow,
+    },
+  ),
+  R(
+    "catalog-ref-annabel-tall-kneeling-strap-ball-press",
+    "高跪姿單臂拉繩＋球上舉（Annabel 變化）",
+    "Tall-Kneeling Single-Arm Strap & Ball Press (Annabel Variation)",
+    "中階",
+    ["肩膀", "手臂", "核心", "穩定"],
+    ["跪姿"],
+    {
+      aliases: ["Tall Kneeling Ball Press", "高跪姿球上舉"],
+      conditions: ["膝蓋負重", "單側", "平衡需求"],
+      descriptionFlow:
+        "高跪於 Carriage，一手控制拉繩，雙手配合小球完成胸前至上方的推舉路徑。",
+      cueMovement: "臀部保持啟動、肋骨不外翻，手臂移動時骨盆維持朝前。",
+      regression: "改坐姿、拿掉小球，或以雙手對稱路徑練習。",
+      progression: "加入單側停留、旋轉前置或更長的離心控制。",
+      personalNote: ANNABEL_NOTE,
+      sourceUrl: SOURCES.annabel,
+      demoVideoUrl: ANNABEL_REELS.ballFlow,
+    },
   ),
 ];
 
@@ -1382,13 +1622,18 @@ function createCatalogExercise(seed: Seed, timestamp: string): Exercise {
     movementType,
     suggestedReps: seed.reps ?? "5–8 次",
     suggestedSeconds: seed.seconds ?? 180,
-    spring: "依器械／學員調整",
-    footbar: seed.apparatus === "Reformer" ? "依動作設定" : "不適用",
-    headrest: seed.apparatus === "Reformer" ? "依動作設定" : "不適用",
+    spring: seed.spring ?? "依器械／學員調整",
+    footbar:
+      seed.footbar ?? (seed.apparatus === "Reformer" ? "依動作設定" : "不適用"),
+    headrest:
+      seed.headrest ??
+      (seed.apparatus === "Reformer" ? "依動作設定" : "不適用"),
     usesBox: seed.usesBox ?? false,
     description: {
       startPosition: `確認器械安全後，進入${position}的穩定起始位置。`,
-      flow: `以可控制的範圍完成「${seed.nameZh}」，依學生狀況調整阻力、幅度與節奏。`,
+      flow:
+        seed.descriptionFlow ??
+        `以可控制的範圍完成「${seed.nameZh}」，依學生狀況調整阻力、幅度與節奏。`,
       endPosition: "控制器械回到安全位置，再安排下一個動作或換邊。",
     },
     defaultCue: {
@@ -1396,7 +1641,8 @@ function createCatalogExercise(seed: Seed, timestamp: string): Exercise {
       start: `進入${position}，找到穩定且可呼吸的位置。`,
       breathing: "保持呼吸流動，不因增加難度而憋氣。",
       core: "讓軀幹維持可控制的連結，避免用慣性帶動器械。",
-      movement: `平順完成${seed.nameZh}，去程與回程都保持控制。`,
+      movement:
+        seed.cueMovement ?? `平順完成${seed.nameZh}，去程與回程都保持控制。`,
       correction: "若穩定度下降，先減少幅度、阻力或改用退階版本。",
       finish: "慢慢回到起始位置，確認器械停止後再轉換。",
     },
@@ -1406,12 +1652,15 @@ function createCatalogExercise(seed: Seed, timestamp: string): Exercise {
     cautions:
       "內建內容僅供教師備課與回想；請依培訓系統、器械品牌及學生當日狀況調整。",
     contraindications: "需由合格教師依個別狀況評估，不作為醫療判斷。",
-    regression: "減少動作幅度、降低複雜度，或增加器械支撐。",
-    progression: "在維持控制下加入單側、平衡、節奏或完整動作變化。",
+    regression: seed.regression ?? "減少動作幅度、降低複雜度，或增加器械支撐。",
+    progression:
+      seed.progression ?? "在維持控制下加入單側、平衡、節奏或完整動作變化。",
     alternatives: [],
     prerequisites: [],
     suggestedNext: [],
-    personalNote: "市場動作目錄示範資料；中文名稱、Cue 與設定都可自行修改。",
+    personalNote:
+      seed.personalNote ??
+      "市場動作目錄示範資料；中文名稱、Cue 與設定都可自行修改。",
     specialConditions: seed.conditions ?? [],
     sourceUrl: seed.sourceUrl,
     demoVideoUrl: seed.demoVideoUrl,

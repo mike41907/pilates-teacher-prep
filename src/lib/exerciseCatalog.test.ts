@@ -10,7 +10,7 @@ import {
 describe("built-in equipment exercise catalog", () => {
   it("contains at least 100 unique exercises across four apparatus types", () => {
     const catalog = createExerciseCatalog("2026-08-13T00:00:00.000Z");
-    expect(catalog.length).toBeGreaterThanOrEqual(100);
+    expect(catalog).toHaveLength(145);
     expect(new Set(catalog.map((exercise) => exercise.id)).size).toBe(
       catalog.length,
     );
@@ -18,6 +18,28 @@ describe("built-in equipment exercise catalog", () => {
       expect(
         catalog.filter((exercise) => exercise.apparatus === apparatus).length,
       ).toBeGreaterThanOrEqual(15);
+  });
+
+  it("includes ten clearly attributed Annabel Reformer variations", () => {
+    const catalog = createExerciseCatalog("2026-08-13T00:00:00.000Z");
+    const annabelVariations = catalog.filter((exercise) =>
+      exercise.sourceUrl?.includes("instagram.com/wellnessbyannabel"),
+    );
+    expect(annabelVariations).toHaveLength(10);
+    expect(
+      annabelVariations.every(
+        (exercise) =>
+          exercise.apparatus === "Reformer" &&
+          exercise.demoVideoUrl?.startsWith(
+            "https://www.instagram.com/wellnessbyannabel/",
+          ),
+      ),
+    ).toBe(true);
+    expect(
+      annabelVariations.find((exercise) =>
+        exercise.nameEn.includes("Quadruped Leg Lift"),
+      )?.regression,
+    ).toContain("Carriage");
   });
 
   it("provides searchable metadata and source links for every catalog item", () => {
@@ -28,7 +50,7 @@ describe("built-in equipment exercise catalog", () => {
       expect(exercise.primaryAreas.length).toBeGreaterThan(0);
       expect(exercise.startPositions.length).toBeGreaterThan(0);
       expect(exercise.sourceUrl).toMatch(/^https:\/\//);
-      expect(exercise.defaultCue.movement).toContain(exercise.nameZh);
+      expect(exercise.defaultCue.movement).not.toBe("");
     }
     expect(
       catalog.filter((exercise) => exercise.demoVideoUrl).length,

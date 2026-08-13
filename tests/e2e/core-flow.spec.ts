@@ -183,7 +183,7 @@ test("built-in apparatus catalog is searchable and links to verified demos", asy
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.getByRole("button", { name: "動作庫" }).click();
-  await expect(page.getByText("135 個動作", { exact: true })).toBeVisible();
+  await expect(page.getByText("145 個動作", { exact: true })).toBeVisible();
 
   const search = page.getByLabel("搜尋動作庫");
   await search.fill("Going Up Front");
@@ -206,6 +206,18 @@ test("built-in apparatus catalog is searchable and links to verified demos", asy
       .locator(".exercise-card")
       .filter({ hasText: "Ladder Barrel Handstand" }),
   ).toContainText("Barrel");
+
+  await search.fill("Quadruped Leg Lift");
+  const annabelCard = page
+    .locator(".exercise-card")
+    .filter({ hasText: "Quadruped Leg Lift" });
+  await expect(annabelCard).toContainText("Annabel Variation");
+  await expect(
+    annabelCard.getByRole("link", { name: "線上示範" }),
+  ).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.instagram\.com\/wellnessbyannabel\/reel\//,
+  );
 });
 
 test("template use button preselects and fills the course", async ({
