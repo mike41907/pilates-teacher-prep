@@ -1,4 +1,4 @@
-const CACHE_NAME = "pilates-prep-shell-v0.3.0";
+const CACHE_NAME = "pilates-prep-shell-v0.4.0";
 const BASE_PATH = new URL("./", self.location).pathname;
 const APP_SHELL = [
   BASE_PATH,

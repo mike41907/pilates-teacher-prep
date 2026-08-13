@@ -1,5 +1,5 @@
-export const APP_VERSION = "0.3.0";
-export const BACKUP_SCHEMA_VERSION = 3;
+export const APP_VERSION = "0.4.0";
+export const BACKUP_SCHEMA_VERSION = 4;
 
 export type Id = string;
 
@@ -57,6 +57,25 @@ export type AppView =
 export type StudyMode = "sequence" | "recall" | "cue";
 export type TeachingTimerMode = "elapsed" | "countdown";
 export type TeachingLevelKind = "regression" | "standard" | "variation";
+export type ExerciseVideoSlot = "overview" | TeachingLevelKind;
+
+export interface ExerciseVideoRef {
+  id: Id;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+export interface ExerciseMediaAsset extends ExerciseVideoRef {
+  exerciseId: Id;
+  slot: ExerciseVideoSlot;
+  blob: Blob;
+}
+
+export interface BackupMediaAsset extends Omit<ExerciseMediaAsset, "blob"> {
+  dataUrl: string;
+}
 
 export interface Cue {
   preparation: string;
@@ -101,6 +120,7 @@ export interface Exercise {
   regression: string;
   progression: string;
   defaultTeachingLevels?: TeachingLevelTemplate[];
+  videoRefs?: Partial<Record<ExerciseVideoSlot, ExerciseVideoRef>>;
   alternatives: Id[];
   prerequisites: Id[];
   suggestedNext: Id[];
@@ -244,6 +264,7 @@ export interface BackupEnvelope {
   appVersion: string;
   exportedAt: string;
   data: AppData;
+  media: BackupMediaAsset[];
 }
 
 export interface CourseDraft {

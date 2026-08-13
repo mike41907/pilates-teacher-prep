@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -122,10 +123,55 @@ test("complete backup downloads valid local data", async ({
   test.skip(testInfo.project.name !== "mobile-390x844");
   await page.getByRole("button", { name: "開啟設定" }).click();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "匯出完整備份" }).click();
+  await page.getByRole("button", { name: "完整備份（含影片）" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/pilates-prep-backup.*\.json/);
+  expect(download.suggestedFilename()).toMatch(
+    /pilates-prep-backup-with-videos-.*\.json/,
+  );
   expect(await download.failure()).toBeNull();
+});
+
+test("exercise reminder video is stored offline and shown in the library", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390x844");
+  await page.getByRole("button", { name: "動作庫" }).click();
+  await page.getByLabel("搜尋動作庫").fill("Footwork");
+  const card = page.locator(".exercise-card").filter({ hasText: "Footwork" });
+  await card.getByRole("button", { name: "編輯" }).click();
+  const dialog = page.getByRole("dialog", { name: "編輯動作" });
+  const videoSlot = dialog
+    .locator(".video-slot-card")
+    .filter({ hasText: "動作總覽" });
+  await videoSlot.locator('input[type="file"]').setInputFiles({
+    name: "footwork-reminder.webm",
+    mimeType: "video/webm",
+    buffer: Buffer.from([0x1a, 0x45, 0xdf, 0xa3]),
+  });
+  await expect(dialog.getByText("動作總覽影片已存入此裝置。")).toBeVisible();
+  await dialog.getByRole("button", { name: "儲存動作" }).click();
+  await expect(card.getByRole("button", { name: /快速回想/ })).toBeVisible();
+  await expect(page.getByText("動作已更新。")).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.getByRole("button", { name: "動作庫" }).click();
+  await page.getByLabel("搜尋動作庫").fill("Footwork");
+  await expect(
+    page
+      .locator(".exercise-card")
+      .filter({ hasText: "Footwork" })
+      .getByRole("button", { name: /快速回想/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "開啟設定" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "完整備份（含影片）" }).click();
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const backup = JSON.parse(await readFile(downloadPath!, "utf8"));
+  expect(backup.media).toHaveLength(1);
+  expect(backup.media[0].fileName).toBe("footwork-reminder.webm");
+  expect(backup.media[0].dataUrl).toMatch(/^data:video\/webm;base64,/);
 });
 
 test("template use button preselects and fills the course", async ({

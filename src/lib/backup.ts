@@ -3,11 +3,13 @@ import {
   BACKUP_SCHEMA_VERSION,
   DEFAULT_SETTINGS,
   type AppData,
+  type BackupMediaAsset,
   type BackupEnvelope,
   type Course,
   type CourseExercise,
   type Cue,
   type Exercise,
+  type ExerciseVideoRef,
   type Template,
   type UsageHistory,
 } from "../types";
@@ -67,6 +69,17 @@ function cueAt(value: unknown, path: string): Cue {
   };
 }
 
+function videoRefAt(value: unknown, path: string): ExerciseVideoRef {
+  const reference = objectAt(value, path);
+  return {
+    id: stringAt(reference.id, `${path}.id`),
+    fileName: stringAt(reference.fileName, `${path}.fileName`),
+    mimeType: stringAt(reference.mimeType, `${path}.mimeType`),
+    sizeBytes: numberAt(reference.sizeBytes, `${path}.sizeBytes`),
+    updatedAt: stringAt(reference.updatedAt, `${path}.updatedAt`),
+  };
+}
+
 function exerciseAt(value: unknown, index: number): Exercise {
   const path = `data.exercises[${index}]`;
   const item = objectAt(value, path);
@@ -113,6 +126,12 @@ function exerciseAt(value: unknown, index: number): Exercise {
   stringAt(description.flow, `${path}.description.flow`);
   stringAt(description.endPosition, `${path}.description.endPosition`);
   cueAt(item.defaultCue, `${path}.defaultCue`);
+  if (item.videoRefs !== undefined) {
+    const references = objectAt(item.videoRefs, `${path}.videoRefs`);
+    for (const slot of ["overview", "regression", "standard", "variation"])
+      if (references[slot] !== undefined)
+        videoRefAt(references[slot], `${path}.videoRefs.${slot}`);
+  }
   if (item.defaultTeachingLevels !== undefined) {
     if (!Array.isArray(item.defaultTeachingLevels))
       throw new Error(`${path}.defaultTeachingLevels 必須是陣列。`);
@@ -145,6 +164,32 @@ function exerciseAt(value: unknown, index: number): Exercise {
       );
   }
   return clone(item) as unknown as Exercise;
+}
+
+function mediaAt(value: unknown, index: number): BackupMediaAsset {
+  const path = `media[${index}]`;
+  const item = objectAt(value, path);
+  const slot = enumAt(
+    item.slot,
+    ["overview", "regression", "standard", "variation"],
+    `${path}.slot`,
+  );
+  const mimeType = stringAt(item.mimeType, `${path}.mimeType`);
+  if (!mimeType.startsWith("video/"))
+    throw new Error(`${path}.mimeType 必須是影片格式。`);
+  const dataUrl = stringAt(item.dataUrl, `${path}.dataUrl`);
+  if (!dataUrl.startsWith("data:video/"))
+    throw new Error(`${path}.dataUrl 必須是影片資料。`);
+  return {
+    id: stringAt(item.id, `${path}.id`),
+    exerciseId: stringAt(item.exerciseId, `${path}.exerciseId`),
+    slot,
+    fileName: stringAt(item.fileName, `${path}.fileName`),
+    mimeType,
+    sizeBytes: numberAt(item.sizeBytes, `${path}.sizeBytes`),
+    updatedAt: stringAt(item.updatedAt, `${path}.updatedAt`),
+    dataUrl,
+  };
 }
 
 function courseExerciseAt(
@@ -364,18 +409,25 @@ function validateData(value: unknown, schemaVersion: number): AppData {
   };
 }
 
-export function createBackup(data: AppData): BackupEnvelope {
+export function createBackup(
+  data: AppData,
+  media: BackupMediaAsset[] = [],
+): BackupEnvelope {
   return {
     app: "pilates-prep",
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion: APP_VERSION,
     exportedAt: nowIso(),
     data: clone(data),
+    media: clone(media),
   };
 }
 
-export function serializeBackup(data: AppData): string {
-  return JSON.stringify(createBackup(data), null, 2);
+export function serializeBackup(
+  data: AppData,
+  media: BackupMediaAsset[] = [],
+): string {
+  return JSON.stringify(createBackup(data, media), null, 2);
 }
 
 export function parseBackup(raw: string): BackupEnvelope {
@@ -393,12 +445,37 @@ export function parseBackup(raw: string): BackupEnvelope {
     throw new Error(`備份版本 ${schemaVersion} 與目前版本不相容。`);
   const exportedAt = stringAt(envelope.exportedAt, "exportedAt");
   const appVersion = stringAt(envelope.appVersion, "appVersion");
+  if (schemaVersion >= 4 && !Array.isArray(envelope.media))
+    throw new Error("media 必須是陣列。");
+  const media = Array.isArray(envelope.media)
+    ? envelope.media.map(mediaAt)
+    : [];
+  const parsedData = migrateTeachingLevels(
+    validateData(envelope.data, schemaVersion),
+  );
+  for (const exercise of parsedData.exercises) {
+    for (const [slot, reference] of Object.entries(exercise.videoRefs ?? {})) {
+      if (
+        reference &&
+        !media.some(
+          (asset) =>
+            asset.id === reference.id &&
+            asset.exerciseId === exercise.id &&
+            asset.slot === slot,
+        )
+      )
+        throw new Error(
+          `動作「${exercise.nameZh || exercise.nameEn}」的${slot}影片內容缺少。`,
+        );
+    }
+  }
   return {
     app: "pilates-prep",
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion,
     exportedAt,
-    data: migrateTeachingLevels(validateData(envelope.data, schemaVersion)),
+    data: parsedData,
+    media,
   };
 }
 
@@ -411,8 +488,17 @@ export function mergeBackup(current: AppData, incoming: AppData): AppData {
     for (const item of second) map.set(item.id, clone(item));
     return [...map.values()];
   };
+  const currentExerciseById = new Map(
+    current.exercises.map((exercise) => [exercise.id, exercise]),
+  );
+  const incomingExercises = incoming.exercises.map((exercise) => {
+    const existing = currentExerciseById.get(exercise.id);
+    return !exercise.videoRefs && existing?.videoRefs
+      ? { ...exercise, videoRefs: clone(existing.videoRefs) }
+      : exercise;
+  });
   return {
-    exercises: mergeById(current.exercises, incoming.exercises),
+    exercises: mergeById(current.exercises, incomingExercises),
     courses: mergeById(current.courses, incoming.courses),
     templates: mergeById(current.templates, incoming.templates),
     usageHistory: mergeById(current.usageHistory, incoming.usageHistory),

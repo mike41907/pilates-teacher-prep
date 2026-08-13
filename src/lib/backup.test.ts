@@ -1,16 +1,56 @@
 import { describe, expect, it } from "vitest";
 import { createDemoData } from "./demoData";
-import { parseBackup, serializeBackup } from "./backup";
+import { mergeBackup, parseBackup, serializeBackup } from "./backup";
 
 describe("backup validation", () => {
   it("round-trips every local data collection", () => {
     const source = createDemoData();
     const parsed = parseBackup(serializeBackup(source));
-    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.schemaVersion).toBe(4);
     expect(parsed.data.exercises).toHaveLength(source.exercises.length);
     expect(parsed.data.courses[0].exercises[0].snapshot.nameEn).toBe(
       source.courses[0].exercises[0].snapshot.nameEn,
     );
+    expect(parsed.media).toEqual([]);
+  });
+
+  it("validates and restores video backup metadata", () => {
+    const source = createDemoData();
+    const videoReference = {
+      id: "video-1",
+      fileName: "footwork.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 3,
+      updatedAt: "2026-08-13T00:00:00.000Z",
+    };
+    source.exercises[0].videoRefs = { overview: videoReference };
+    const raw = serializeBackup(source, [
+      {
+        ...videoReference,
+        exerciseId: source.exercises[0].id,
+        slot: "overview",
+        dataUrl: "data:video/mp4;base64,AQID",
+      },
+    ]);
+    const parsed = parseBackup(raw);
+    expect(parsed.media).toHaveLength(1);
+    expect(parsed.media[0].fileName).toBe("footwork.mp4");
+  });
+
+  it("keeps device videos when merging a data-only backup", () => {
+    const current = createDemoData();
+    current.exercises[0].videoRefs = {
+      overview: {
+        id: "local-video",
+        fileName: "local.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: 10,
+        updatedAt: "2026-08-13T00:00:00.000Z",
+      },
+    };
+    const incoming = createDemoData();
+    const merged = mergeBackup(current, incoming);
+    expect(merged.exercises[0].videoRefs?.overview?.id).toBe("local-video");
   });
 
   it("migrates a schema v1 backup with missing v2 settings", () => {

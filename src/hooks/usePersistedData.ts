@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEFAULT_SETTINGS, type AppData } from "../types";
+import {
+  DEFAULT_SETTINGS,
+  type AppData,
+  type ExerciseMediaAsset,
+} from "../types";
 import { createDemoData } from "../lib/demoData";
-import { loadData, persistDataChanges, replaceData } from "../lib/db";
+import {
+  loadData,
+  persistDataChanges,
+  replaceData,
+  replaceDataAndMedia,
+} from "../lib/db";
 import {
   dataNeedsTeachingLevelMigration,
   migrateTeachingLevels,
@@ -114,12 +123,16 @@ export function usePersistedData() {
     [flush],
   );
 
-  const replaceAllData = useCallback(async (next: AppData) => {
-    await replaceData(next);
-    persistedRef.current = next;
-    pendingRef.current = null;
-    setData(next);
-  }, []);
+  const replaceAllData = useCallback(
+    async (next: AppData, mediaAssets?: ExerciseMediaAsset[]) => {
+      if (mediaAssets) await replaceDataAndMedia(next, mediaAssets);
+      else await replaceData(next);
+      persistedRef.current = next;
+      pendingRef.current = null;
+      setData(next);
+    },
+    [],
+  );
 
   return { data, update, replaceAllData, toast, setToast, loadError, flush };
 }

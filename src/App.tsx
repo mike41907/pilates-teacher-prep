@@ -28,6 +28,8 @@ import {
   type Cue,
   type Exercise,
   type ExerciseFilters,
+  type ExerciseVideoRef,
+  type ExerciseVideoSlot,
   type Familiarity,
   type Level,
   type Section,
@@ -39,6 +41,18 @@ import {
   type ThemeMode,
 } from "./types";
 import { mergeBackup, parseBackup, serializeBackup } from "./lib/backup";
+import {
+  createMediaBackup,
+  formatFileSize,
+  loadExerciseVideo,
+  mergeMediaAssets,
+  removeExerciseVideo,
+  restoreMediaBackup,
+  saveExerciseVideo,
+  VIDEO_SLOT_LABELS,
+  VIDEO_SLOTS,
+} from "./lib/media";
+import { deleteExerciseMediaForExercise, getAllExerciseMedia } from "./lib/db";
 import { usePersistedData } from "./hooks/usePersistedData";
 import { TeachingView } from "./components/TeachingView";
 import { TeachingFlowReadout } from "./components/TeachingFlowReadout";
@@ -605,6 +619,9 @@ export default function App() {
       }),
       "動作已刪除；歷史課表仍保留快照。",
     );
+    void deleteExerciseMediaForExercise(exercise.id).catch(() =>
+      notify("動作已刪除，但部分影片清理失敗，可重新整理後再試。"),
+    );
     setExerciseEditor(null);
   };
 
@@ -618,18 +635,35 @@ export default function App() {
     }
   };
 
-  const exportBackup = () => {
+  const exportBackup = async (includeMedia: boolean) => {
     if (!data) return;
-    const blob = new Blob([serializeBackup(data)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `pilates-prep-backup-${localDateIso()}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    notify("完整備份已下載。");
+    try {
+      const media = includeMedia ? await createMediaBackup() : [];
+      const backupData = includeMedia
+        ? data
+        : {
+            ...data,
+            exercises: data.exercises.map(
+              ({ videoRefs: _videoRefs, ...item }) => item,
+            ),
+          };
+      const blob = new Blob([serializeBackup(backupData, media)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `pilates-prep-backup-${includeMedia ? "with-videos-" : "data-"}${localDateIso()}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      notify(
+        includeMedia
+          ? `完整備份已下載，包含 ${media.length} 段影片。`
+          : "資料備份已下載（不含影片）。",
+      );
+    } catch {
+      notify("備份建立失敗，請確認裝置空間後重新嘗試。");
+    }
   };
 
   const selectBackup = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -643,31 +677,43 @@ export default function App() {
     }
   };
 
-  const importBackup = (mode: "merge" | "replace") => {
+  const importBackup = async (mode: "merge" | "replace") => {
     if (!data || !pendingBackup) return;
-    const next =
-      mode === "merge"
-        ? mergeBackup(data, pendingBackup.data)
-        : pendingBackup.data;
-    const safetyBlob = new Blob([serializeBackup(data)], {
-      type: "application/json",
-    });
-    const safetyUrl = URL.createObjectURL(safetyBlob);
-    const safetyAnchor = document.createElement("a");
-    safetyAnchor.href = safetyUrl;
-    safetyAnchor.download = `pilates-prep-import-safety-${localDateIso()}.json`;
-    safetyAnchor.click();
-    URL.revokeObjectURL(safetyUrl);
-    void replaceAllData(next)
-      .then(() => {
-        setPendingBackup(null);
-        notify(
-          mode === "merge"
-            ? "備份已合併，並已下載匯入前安全備份。"
-            : "備份已還原，並已下載匯入前安全備份。",
-        );
-      })
-      .catch(() => notify("資料儲存失敗，現有資料未被變更。"));
+    try {
+      const currentMedia = await getAllExerciseMedia();
+      const incomingMedia = restoreMediaBackup(pendingBackup.media);
+      const next =
+        mode === "merge"
+          ? mergeBackup(data, pendingBackup.data)
+          : pendingBackup.data;
+      const nextMedia =
+        mode === "merge"
+          ? mergeMediaAssets(currentMedia, incomingMedia)
+          : incomingMedia;
+      const safetyMedia = await createMediaBackup();
+      const safetyBlob = new Blob([serializeBackup(data, safetyMedia)], {
+        type: "application/json",
+      });
+      const safetyUrl = URL.createObjectURL(safetyBlob);
+      const safetyAnchor = document.createElement("a");
+      safetyAnchor.href = safetyUrl;
+      safetyAnchor.download = `pilates-prep-import-safety-${localDateIso()}.json`;
+      safetyAnchor.click();
+      URL.revokeObjectURL(safetyUrl);
+      await replaceAllData(next, nextMedia);
+      setPendingBackup(null);
+      notify(
+        mode === "merge"
+          ? "備份與影片已合併，並已下載匯入前安全備份。"
+          : "備份與影片已還原，並已下載匯入前安全備份。",
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "資料儲存失敗，現有資料未被變更。",
+      );
+    }
   };
 
   if (!data) return <LoadingScreen error={loadError} />;
@@ -1258,6 +1304,64 @@ function PlannerLanding({
   );
 }
 
+function ExerciseVideoPreview({ exercise }: { exercise: Exercise }) {
+  const reference =
+    exercise.videoRefs?.overview ?? exercise.videoRefs?.standard;
+  const [videoUrl, setVideoUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+    },
+    [videoUrl],
+  );
+
+  if (!reference) return null;
+  const toggle = async () => {
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl);
+      setVideoUrl("");
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    try {
+      const asset = await loadExerciseVideo(reference);
+      if (!asset) throw new Error("這段影片在此裝置上找不到，請重新匯入。");
+      setVideoUrl(URL.createObjectURL(asset.blob));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "影片讀取失敗。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="exercise-video-preview">
+      <button className="video-preview-button" onClick={() => void toggle()}>
+        <PlayIcon size={15} />
+        {loading ? "讀取中…" : videoUrl ? "收起影片" : "快速回想"}
+        <small>{formatFileSize(reference.sizeBytes)}</small>
+      </button>
+      {videoUrl && (
+        <video
+          src={videoUrl}
+          controls
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-label={`${exercise.nameZh || exercise.nameEn} 示範影片`}
+        />
+      )}
+      {message && <p className="video-error">{message}</p>}
+    </div>
+  );
+}
+
 function ExerciseLibraryCard({
   exercise,
   usageCount,
@@ -1344,6 +1448,7 @@ function ExerciseLibraryCard({
           ))}
         </div>
       ) : null}
+      <ExerciseVideoPreview exercise={exercise} />
       {!compact && (
         <div className="exercise-card-bottom">
           <span className="muted-text">
@@ -3169,7 +3274,7 @@ function SettingsView({
 }: {
   data: AppData;
   onSettings: (settings: AppSettings) => void;
-  onExport: () => void;
+  onExport: (includeMedia: boolean) => void;
   onSelectBackup: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   const settings = data.settings;
@@ -3296,6 +3401,7 @@ function SettingsView({
         <section className="settings-section card-surface backup-section">
           <SectionTitle title="備份與還原" />
           <StorageHealth />
+          <VideoStorageSummary />
           <div className="privacy-callout">
             <CheckIcon size={18} />
             <div>
@@ -3304,8 +3410,14 @@ function SettingsView({
             </div>
           </div>
           <div className="backup-actions">
-            <button className="secondary-button" onClick={onExport}>
-              <DownloadIcon size={17} /> 匯出完整備份
+            <button className="secondary-button" onClick={() => onExport(true)}>
+              <DownloadIcon size={17} /> 完整備份（含影片）
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => onExport(false)}
+            >
+              <DownloadIcon size={17} /> 資料備份（不含影片）
             </button>
             <label className="secondary-button file-button">
               <UploadIcon size={17} /> 匯入備份
@@ -3317,7 +3429,7 @@ function SettingsView({
             </label>
           </div>
           <p className="muted-text small">
-            支援舊版備份遷移；所有動作、Cue、課程與設定都會先逐欄驗證。
+            含影片備份檔會較大；支援舊版遷移，匯入前會驗證動作、Cue、課程、設定與影片。
           </p>
         </section>
         <section className="settings-section card-surface">
@@ -3734,6 +3846,120 @@ function ExercisePickerModal({
   );
 }
 
+function VideoSlotEditor({
+  slot,
+  reference,
+  onSelect,
+  onRemove,
+}: {
+  slot: ExerciseVideoSlot;
+  reference?: ExerciseVideoRef;
+  onSelect: (event: ChangeEvent<HTMLInputElement>) => void;
+  onRemove: () => void;
+}) {
+  const [videoUrl, setVideoUrl] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setMessage("");
+    setVideoUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
+  }, [reference?.id]);
+
+  useEffect(
+    () => () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+    },
+    [videoUrl],
+  );
+
+  const preview = async () => {
+    if (!reference) return;
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl);
+      setVideoUrl("");
+      return;
+    }
+    try {
+      const asset = await loadExerciseVideo(reference);
+      if (!asset) throw new Error("影片在此裝置上找不到，請重新選擇。");
+      setVideoUrl(URL.createObjectURL(asset.blob));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "影片讀取失敗。");
+    }
+  };
+
+  return (
+    <div className="video-slot-card">
+      <div className="video-slot-heading">
+        <div>
+          <strong>{VIDEO_SLOT_LABELS[slot]}</strong>
+          <small>
+            {reference
+              ? `${reference.fileName} · ${formatFileSize(reference.sizeBytes)}`
+              : "尚未加入影片"}
+          </small>
+        </div>
+        {reference && <span className="video-ready-badge">可離線</span>}
+      </div>
+      {videoUrl && (
+        <video
+          src={videoUrl}
+          controls
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+        />
+      )}
+      {message && <p className="video-error">{message}</p>}
+      <div className="video-slot-actions">
+        {reference && (
+          <button className="small-button" onClick={() => void preview()}>
+            <PlayIcon size={15} /> {videoUrl ? "收起" : "預覽"}
+          </button>
+        )}
+        <label className="small-button file-button">
+          <UploadIcon size={15} /> {reference ? "更換" : "選擇／拍攝"}
+          <input type="file" accept="video/*" onChange={onSelect} />
+        </label>
+        {reference && (
+          <button className="small-button danger-text" onClick={onRemove}>
+            <TrashIcon size={14} /> 移除
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VideoStorageSummary() {
+  const [summary, setSummary] = useState("正在計算影片容量…");
+  useEffect(() => {
+    void getAllExerciseMedia()
+      .then((assets) => {
+        const bytes = assets.reduce(
+          (total, asset) => total + asset.sizeBytes,
+          0,
+        );
+        setSummary(
+          assets.length
+            ? `${assets.length} 段離線影片 · ${formatFileSize(bytes)}`
+            : "目前尚未儲存離線影片",
+        );
+      })
+      .catch(() => setSummary("無法讀取影片容量，其他資料仍可正常使用。"));
+  }, []);
+  return (
+    <p className="storage-health">
+      <PlayIcon size={15} /> {summary}
+    </p>
+  );
+}
+
 function ExerciseModal({
   exercise: initial,
   onClose,
@@ -3748,6 +3974,9 @@ function ExerciseModal({
   const [exercise, setExercise] = useState<Exercise>(clone(initial));
   const [advanced, setAdvanced] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const [mediaMessage, setMediaMessage] = useState("");
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const initialVideoRefs = useRef(clone(initial.videoRefs ?? {}));
   const update = <K extends keyof Exercise>(key: K, value: Exercise[K]) =>
     setExercise((current) => ({ ...current, [key]: value }));
   const toggleList = <T extends string>(
@@ -3763,12 +3992,95 @@ function ExerciseModal({
           : [...list, value],
       };
     });
-  const save = () => {
+  const updateVideo = async (
+    slot: ExerciseVideoSlot,
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setMediaBusy(true);
+    setMediaMessage("");
+    try {
+      const reference = await saveExerciseVideo(exercise.id, slot, file);
+      const previous = exercise.videoRefs?.[slot];
+      if (previous && previous.id !== initialVideoRefs.current[slot]?.id)
+        await removeExerciseVideo(previous);
+      setExercise((current) => ({
+        ...current,
+        videoRefs: { ...current.videoRefs, [slot]: reference },
+      }));
+      setMediaMessage(`${VIDEO_SLOT_LABELS[slot]}影片已存入此裝置。`);
+    } catch (error) {
+      setMediaMessage(
+        error instanceof Error ? error.message : "影片儲存失敗，請重新嘗試。",
+      );
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+  const removeVideo = async (slot: ExerciseVideoSlot) => {
+    const reference = exercise.videoRefs?.[slot];
+    if (!reference) return;
+    if (!window.confirm(`確定要移除${VIDEO_SLOT_LABELS[slot]}影片嗎？`)) return;
+    setMediaBusy(true);
+    try {
+      if (reference.id !== initialVideoRefs.current[slot]?.id)
+        await removeExerciseVideo(reference);
+      setExercise((current) => {
+        const videoRefs = { ...current.videoRefs };
+        delete videoRefs[slot];
+        return { ...current, videoRefs };
+      });
+      setMediaMessage("影片將在儲存動作後移除。");
+    } catch {
+      setMediaMessage("影片移除失敗，請重新嘗試。");
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+  const discardVideoChanges = async () => {
+    for (const reference of Object.values(exercise.videoRefs ?? {})) {
+      if (
+        reference &&
+        !Object.values(initialVideoRefs.current).some(
+          (initialReference) => initialReference?.id === reference.id,
+        )
+      )
+        await removeExerciseVideo(reference);
+    }
+  };
+  const close = async () => {
+    if (mediaBusy) {
+      setMediaMessage("影片正在處理中，完成後即可關閉。");
+      return;
+    }
+    try {
+      await discardVideoChanges();
+    } finally {
+      onClose();
+    }
+  };
+  const save = async () => {
     if (!exercise.nameZh.trim() && !exercise.nameEn.trim()) {
       setValidationError("請至少填寫中文名稱或英文名稱。");
       return;
     }
     setValidationError("");
+    setMediaBusy(true);
+    try {
+      for (const slot of VIDEO_SLOTS) {
+        const initialReference = initialVideoRefs.current[slot];
+        const nextReference = exercise.videoRefs?.[slot];
+        if (initialReference && initialReference.id !== nextReference?.id)
+          await removeExerciseVideo(initialReference);
+      }
+    } catch {
+      setMediaBusy(false);
+      setMediaMessage("舊影片清理失敗，請重新嘗試儲存。");
+      return;
+    }
+    setMediaBusy(false);
     onSave({
       ...exercise,
       nameZh: exercise.nameZh.trim(),
@@ -3784,7 +4096,7 @@ function ExerciseModal({
   return (
     <Modal
       title={initial.nameZh || initial.nameEn ? "編輯動作" : "新增自訂動作"}
-      onClose={onClose}
+      onClose={() => void close()}
       wide
       extraClass="exercise-modal"
     >
@@ -3948,6 +4260,30 @@ function ExerciseModal({
           ))}
         </div>
       </div>
+      <section className="exercise-video-editor">
+        <div className="editor-subtitle">
+          <span>示範短影片</span>
+          <small>
+            建議每段 5～20 秒；單段上限 25 MB，儲存在此裝置並可離線播放
+          </small>
+        </div>
+        <div className="video-slot-grid">
+          {VIDEO_SLOTS.map((slot) => (
+            <VideoSlotEditor
+              key={slot}
+              slot={slot}
+              reference={exercise.videoRefs?.[slot]}
+              onSelect={(event) => void updateVideo(slot, event)}
+              onRemove={() => void removeVideo(slot)}
+            />
+          ))}
+        </div>
+        {mediaMessage && (
+          <p className="media-message" role="status">
+            {mediaMessage}
+          </p>
+        )}
+      </section>
       <div className="cue-editor modal-cue-editor">
         <div className="editor-subtitle">
           <span>預設 Cue</span>
@@ -4050,15 +4386,24 @@ function ExerciseModal({
           <button
             className="text-button danger-text mr-auto"
             onClick={() => onDelete(exercise)}
+            disabled={mediaBusy}
           >
             <TrashIcon size={16} /> 刪除動作
           </button>
         )}
-        <button className="secondary-button" onClick={onClose}>
+        <button
+          className="secondary-button"
+          onClick={() => void close()}
+          disabled={mediaBusy}
+        >
           取消
         </button>
-        <button className="primary-button" onClick={save}>
-          <CheckIcon size={17} /> 儲存動作
+        <button
+          className="primary-button"
+          onClick={() => void save()}
+          disabled={mediaBusy}
+        >
+          <CheckIcon size={17} /> {mediaBusy ? "處理中…" : "儲存動作"}
         </button>
       </div>
     </Modal>
@@ -4162,6 +4507,9 @@ function BackupImportModal({
           </span>
           <span>
             <b>{backup.data.templates.length}</b> 個模板
+          </span>
+          <span>
+            <b>{backup.media.length}</b> 段影片
           </span>
         </div>
         <div className="import-choice">

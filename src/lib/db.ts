@@ -3,15 +3,17 @@ import type {
   AppSettings,
   Course,
   Exercise,
+  ExerciseMediaAsset,
   Template,
   UsageHistory,
 } from "../types";
 
 const DB_NAME = "pilates-prep-local";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 type StoreName =
   "exercises" | "courses" | "templates" | "usageHistory" | "settings";
+const MEDIA_STORE = "exerciseMedia";
 
 let databasePromise: Promise<IDBDatabase> | null = null;
 
@@ -73,6 +75,14 @@ export function openDatabase(): Promise<IDBDatabase> {
 
       if (!database.objectStoreNames.contains("settings"))
         database.createObjectStore("settings", { keyPath: "id" });
+
+      const media = database.objectStoreNames.contains(MEDIA_STORE)
+        ? request.transaction!.objectStore(MEDIA_STORE)
+        : database.createObjectStore(MEDIA_STORE, { keyPath: "id" });
+      if (!media.indexNames.contains("exerciseId"))
+        media.createIndex("exerciseId", "exerciseId");
+      if (!media.indexNames.contains("updatedAt"))
+        media.createIndex("updatedAt", "updatedAt");
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () =>
@@ -215,7 +225,86 @@ export async function clearAllData(): Promise<void> {
     "usageHistory",
     "settings",
   ];
+  const transaction = database.transaction(
+    [...stores, MEDIA_STORE],
+    "readwrite",
+  );
+  for (const storeName of stores) transaction.objectStore(storeName).clear();
+  transaction.objectStore(MEDIA_STORE).clear();
+  await transactionToPromise(transaction);
+}
+
+export async function getExerciseMedia(
+  id: string,
+): Promise<ExerciseMediaAsset | undefined> {
+  const database = await openDatabase();
+  const transaction = database.transaction(MEDIA_STORE, "readonly");
+  return requestToPromise(transaction.objectStore(MEDIA_STORE).get(id));
+}
+
+export async function getAllExerciseMedia(): Promise<ExerciseMediaAsset[]> {
+  const database = await openDatabase();
+  const transaction = database.transaction(MEDIA_STORE, "readonly");
+  return requestToPromise(transaction.objectStore(MEDIA_STORE).getAll());
+}
+
+export async function putExerciseMedia(
+  asset: ExerciseMediaAsset,
+): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction(MEDIA_STORE, "readwrite");
+  transaction.objectStore(MEDIA_STORE).put(asset);
+  await transactionToPromise(transaction);
+}
+
+export async function deleteExerciseMedia(id: string): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction(MEDIA_STORE, "readwrite");
+  transaction.objectStore(MEDIA_STORE).delete(id);
+  await transactionToPromise(transaction);
+}
+
+export async function deleteExerciseMediaForExercise(
+  exerciseId: string,
+): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction(MEDIA_STORE, "readwrite");
+  const index = transaction.objectStore(MEDIA_STORE).index("exerciseId");
+  const request = index.openKeyCursor(IDBKeyRange.only(exerciseId));
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    transaction.objectStore(MEDIA_STORE).delete(cursor.primaryKey);
+    cursor.continue();
+  };
+  await transactionToPromise(transaction);
+}
+
+export async function replaceDataAndMedia(
+  data: AppData,
+  mediaAssets: ExerciseMediaAsset[],
+): Promise<void> {
+  const database = await openDatabase();
+  const stores = [
+    "exercises",
+    "courses",
+    "templates",
+    "usageHistory",
+    "settings",
+    MEDIA_STORE,
+  ];
   const transaction = database.transaction(stores, "readwrite");
   for (const storeName of stores) transaction.objectStore(storeName).clear();
+  for (const exercise of data.exercises)
+    transaction.objectStore("exercises").put(exercise);
+  for (const course of data.courses)
+    transaction.objectStore("courses").put(course);
+  for (const template of data.templates)
+    transaction.objectStore("templates").put(template);
+  for (const history of data.usageHistory)
+    transaction.objectStore("usageHistory").put(history);
+  transaction.objectStore("settings").put(data.settings);
+  for (const asset of mediaAssets)
+    transaction.objectStore(MEDIA_STORE).put(asset);
   await transactionToPromise(transaction);
 }
